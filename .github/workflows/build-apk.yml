@@ -5,6 +5,10 @@ on:
     paths:
       - 'android/**'
       - '.github/workflows/build-apk.yml'
+
+permissions:
+  contents: write
+
 jobs:
   build:
     # ubuntu-24.04 이미지에는 Android SDK가 미리 설치되어 있다 ($ANDROID_HOME)
@@ -88,3 +92,20 @@ jobs:
         with:
           name: StudentCallReceiver-${{ github.run_number }}
           path: dist/*.apk
+
+      # main에서 성공적으로 빌드된 APK는 Release Assets에도 올린다.
+      # 사용자는 Releases 페이지에서 ZIP을 풀지 않고 .apk를 바로 다운로드할 수 있다.
+      - name: Publish APK to GitHub Release
+        if: ${{ github.ref == 'refs/heads/main' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Student Call build ${{ github.run_number }}
+          body: |
+            Student Call Receiver 자동 빌드
+            Commit: ${{ github.sha }}
+
+            서명 키가 등록된 경우 release APK, 미등록인 경우 debug APK입니다.
+          files: dist/*.apk
+          fail_on_unmatched_files: true
+          make_latest: true
