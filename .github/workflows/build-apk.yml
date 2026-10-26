@@ -48,7 +48,12 @@ jobs:
             echo "::error::서명 키를 열 수 없습니다. SIGNING_STORE_PASSWORD(비밀번호)와 SIGNING_KEY_ALIAS(studentcall)를 확인해 주세요."; exit 1
           fi
           export SIGNING_KEYSTORE_FILE="$RUNNER_TEMP/release.jks"
-          gradle -p android :app:assembleRelease
+          set -o pipefail
+          if ! gradle -p android :app:assembleRelease 2>&1 | tee "$RUNNER_TEMP/gradle.log"; then
+            # 실패 원인을 실행 요약(Annotations)에 바로 보이도록
+            msg=$(sed -n '/What went wrong/,/Try:/p' "$RUNNER_TEMP/gradle.log" | grep -v -e 'What went wrong' -e 'Try:' -e '^\s*$' | head -8 | tr '\n' ' ')
+            echo "::error::Gradle 실패: ${msg:-로그를 확인해 주세요}"; exit 1
+          fi
           mkdir -p dist && cp android/app/build/outputs/apk/release/app-release.apk "dist/StudentCallReceiver-${GITHUB_RUN_NUMBER}.apk"
 
       - name: Build debug APK (서명 키 미등록)
