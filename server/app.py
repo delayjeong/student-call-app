@@ -23,7 +23,8 @@ MIN_KEY_LENGTH = 12
 FAIL_LIMIT = 10
 FAIL_WINDOW = 300
 
-CLASS_ID_RE = re.compile(r"^[1-9][0-9]?-[1-9][0-9]?$" )
+CLASS_ID_RE = re.compile(r"^[1-9][0-9]?-[1-9][0-9]?$")
+MAX_DEVICE_ID_LENGTH = 64
 
 # classId -> deviceId -> asyncio.Queue
 # 같은 전자칠판(deviceId)이 재접속하면 새 연결이 이전 연결을 대체한다.
@@ -45,6 +46,15 @@ def key_problem(name: str, value: str) -> str | None:
     if len(value) < MIN_KEY_LENGTH:
         return f"{name}는 {MIN_KEY_LENGTH}자 이상이어야 합니다."
     return None
+
+
+def normalize_device_id(raw) -> str | None:
+    """deviceId는 같은 전자칠판의 재접속을 판정하는 식별자라 비어 있거나 너무 길면 거절한다.
+    잘라서 받으면 서로 다른 기기가 같은 ID로 합쳐질 수 있다."""
+    value = str(raw or "").strip()
+    if not value or len(value) > MAX_DEVICE_ID_LENGTH:
+        return None
+    return value
 
 
 def normalize_class_id(raw: str) -> str | None:
@@ -109,13 +119,17 @@ def replace_device_connection(class_id: str, device_id: str, q: asyncio.Queue) -
     """같은 deviceId의 이전 SSE 연결을 끊고 새 큐로 원자적으로 대체한다."""
     old = subscribers[class_id].get(device_id)
     if old is not None and old is not q:
-        # 이전 큐에 남아 있는 호출은 폐기한다. 새 연결로만 이후 호출을 전달해야
-        # 한 전자칠판에 동일 호출이 두 번 표시되지 않는다.
-        try:
-            while True:
-                old.get_nowait()
-        except asyncio.QueueEmpty:
-            pass
+        # 이전 큐에 남은 호출은 아직 전자칠판으로 보내지지 않은 것이므로 버리지 않고
+        # 순서대로 새 큐로 옮긴다. (await가 없는 구간이라 그 사이 다른 호출이 끼어들지 않는다.)
+        # 이전 큐는 비운 뒤 종료 sentinel만 넣으므로 같은 호출이 두 번 전달되지 않는다.
+        while not old.empty():
+            item = old.get_nowait()
+            if item is None:
+                continue
+            try:
+                q.put_nowait(item)
+            except asyncio.QueueFull:
+                break
         try:
             old.put_nowait(None)  # 이전 stream 루프 종료 sentinel
         except asyncio.QueueFull:
@@ -127,9 +141,11 @@ async def stream(request: web.Request):
     if (err := check_key(request, "X-Device-Key", DEVICE_KEY)):
         return err
     class_id = normalize_class_id(request.query.get("classId", ""))
-    device_id = (request.query.get("deviceId") or "unknown").strip()[:64]
+    device_id = normalize_device_id(request.query.get("deviceId"))
     if not class_id:
         return json_error("classId must look like '1-5'")
+    if not device_id:
+        return json_error(f"deviceId is required (1-{MAX_DEVICE_ID_LENGTH} chars)")
 
     q: asyncio.Queue = asyncio.Queue(maxsize=20)
     replace_device_connection(class_id, device_id, q)
@@ -242,7 +258,9 @@ async def ack(request: web.Request):
     except Exception:
         return json_error("invalid JSON")
     call_id = str(body.get("id", ""))
-    device_id = str(body.get("deviceId", "unknown"))[:64]
+    device_id = normalize_device_id(body.get("deviceId"))
+    if not device_id:
+        return json_error(f"deviceId is required (1-{MAX_DEVICE_ID_LENGTH} chars)")
     if call_id not in acks:
         return json_error("unknown call id", 404)
     acks[call_id].add(device_id)

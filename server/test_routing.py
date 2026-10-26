@@ -75,6 +75,27 @@ async def main():
         await wait_eof(old)
         print('RECONNECT TEST PASS: duplicate device replaced')
         old.close(); new.close()
+
+        # deviceId는 재접속 판정용 식별자라 비어 있거나 너무 길면 거절한다.
+        for q in ['', '&deviceId=', '&deviceId=%20', '&deviceId='+'x'*65]:
+            r=await client.get('/api/stream?classId=2-3'+q,headers=D)
+            assert r.status==400, (q, r.status)
+        for body in [{'id':j['message']['id']}, {'id':j['message']['id'],'deviceId':''}, {'id':j['message']['id'],'deviceId':'x'*65}]:
+            r=await client.post('/api/ack',json=body,headers=D)
+            assert r.status==400, (body, r.status)
+        assert student_app.acks[j['message']['id']]==set()
+        print('DEVICE ID TEST PASS: missing/too long deviceId rejected')
+
+        # 재접속 순간 이전 큐에 남아 있던(아직 보내지 못한) 호출은 새 연결로 순서대로 옮겨진다.
+        stale=asyncio.Queue(maxsize=20); fresh=asyncio.Queue(maxsize=20)
+        student_app.replace_device_connection('3-1','board-y',stale)
+        stale.put_nowait({'id':'c1'}); stale.put_nowait(None); stale.put_nowait({'id':'c2'})
+        student_app.replace_device_connection('3-1','board-y',fresh)
+        assert [fresh.get_nowait()['id'] for _ in range(2)]==['c1','c2'] and fresh.empty()
+        assert stale.get_nowait() is None and stale.empty()
+        assert student_app.subscribers['3-1']=={'board-y':fresh}
+        student_app.subscribers.pop('3-1')
+        print('PENDING MOVE TEST PASS: unsent calls moved to new connection')
     finally:
         await client.close()
 
