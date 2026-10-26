@@ -23,10 +23,12 @@ MIN_KEY_LENGTH = 12
 FAIL_LIMIT = 10
 FAIL_WINDOW = 300
 
-CLASS_ID_RE = re.compile(r"^[1-9][0-9]?-[1-9][0-9]?$")
+CLASS_ID_RE = re.compile(r"^[1-9][0-9]?-[1-9][0-9]?$" )
 
-# classId -> set(asyncio.Queue)
-subscribers: dict[str, set[asyncio.Queue]] = defaultdict(set)
+# classId -> deviceId -> asyncio.Queue
+# 같은 전자칠판(deviceId)이 재접속하면 새 연결이 이전 연결을 대체한다.
+# 네트워크 전환/순간 단절 중 서버에 같은 기기가 2대로 남아 중복 호출되는 것을 막는다.
+subscribers: dict[str, dict[str, asyncio.Queue]] = defaultdict(dict)
 recent_calls = deque(maxlen=100)
 # callId -> 팝업을 표시한 deviceId 집합 (오래된 것부터 정리)
 acks: "OrderedDict[str, set[str]]" = OrderedDict()
@@ -103,6 +105,24 @@ async def devices(request: web.Request):
     })
 
 
+def replace_device_connection(class_id: str, device_id: str, q: asyncio.Queue) -> None:
+    """같은 deviceId의 이전 SSE 연결을 끊고 새 큐로 원자적으로 대체한다."""
+    old = subscribers[class_id].get(device_id)
+    if old is not None and old is not q:
+        # 이전 큐에 남아 있는 호출은 폐기한다. 새 연결로만 이후 호출을 전달해야
+        # 한 전자칠판에 동일 호출이 두 번 표시되지 않는다.
+        try:
+            while True:
+                old.get_nowait()
+        except asyncio.QueueEmpty:
+            pass
+        try:
+            old.put_nowait(None)  # 이전 stream 루프 종료 sentinel
+        except asyncio.QueueFull:
+            pass
+    subscribers[class_id][device_id] = q
+
+
 async def stream(request: web.Request):
     if (err := check_key(request, "X-Device-Key", DEVICE_KEY)):
         return err
@@ -112,7 +132,7 @@ async def stream(request: web.Request):
         return json_error("classId must look like '1-5'")
 
     q: asyncio.Queue = asyncio.Queue(maxsize=20)
-    subscribers[class_id].add(q)
+    replace_device_connection(class_id, device_id, q)
 
     response = web.StreamResponse(
         status=200,
@@ -130,6 +150,8 @@ async def stream(request: web.Request):
         while True:
             try:
                 item = await asyncio.wait_for(q.get(), timeout=20)
+                if item is None:
+                    break
                 payload = json.dumps(item, ensure_ascii=False)
                 await response.write(f"data: {payload}\n\n".encode("utf-8"))
             except asyncio.TimeoutError:
@@ -137,9 +159,13 @@ async def stream(request: web.Request):
     except (ConnectionResetError, asyncio.CancelledError, BrokenPipeError):
         pass
     finally:
-        subscribers[class_id].discard(q)
-        if not subscribers[class_id]:
-            subscribers.pop(class_id, None)
+        # 이전 연결의 finally가 나중에 실행되더라도 새 연결을 지우지 않도록
+        # 현재 등록된 큐가 자기 자신일 때만 제거한다.
+        class_subscribers = subscribers.get(class_id)
+        if class_subscribers is not None and class_subscribers.get(device_id) is q:
+            class_subscribers.pop(device_id, None)
+            if not class_subscribers:
+                subscribers.pop(class_id, None)
     return response
 
 
@@ -183,7 +209,7 @@ async def call_student(request: web.Request):
 
 def broadcast(class_id: str, message: dict) -> int:
     delivered = 0
-    for q in list(subscribers.get(class_id, set())):
+    for q in list(subscribers.get(class_id, {}).values()):
         try:
             q.put_nowait(message)
             delivered += 1
