@@ -44,8 +44,19 @@ jobs:
           if ! printf '%s' "$SIGNING_KEYSTORE_BASE64" | tr -d ' \r\n\t' | base64 -d > "$RUNNER_TEMP/release.jks" 2>/dev/null; then
             echo "::error::SIGNING_KEYSTORE_BASE64 값을 해석할 수 없습니다. README의 '서명 키 등록' 2단계 명령으로 다시 복사해 주세요."; exit 1
           fi
+          # 원인을 구분해서 알려 준다 (비밀번호 값은 출력하지 않음)
+          size=$(stat -c %s "$RUNNER_TEMP/release.jks")
+          if ! out=$(keytool -list -keystore "$RUNNER_TEMP/release.jks" -storepass "$SIGNING_STORE_PASSWORD" 2>&1); then
+            if echo "$out" | grep -qi "password"; then
+              echo "::error::키 파일(${size}바이트)은 정상이지만 SIGNING_STORE_PASSWORD 비밀번호가 맞지 않습니다. 앞뒤 공백 없이 다시 등록해 주세요."
+            else
+              echo "::error::SIGNING_KEYSTORE_BASE64를 복원한 파일(${size}바이트)이 키 파일이 아닙니다. PC의 release.jks 크기와 비교하고, README 2단계 명령으로 다시 복사해 주세요."
+            fi
+            exit 1
+          fi
           if ! keytool -list -keystore "$RUNNER_TEMP/release.jks" -storepass "$SIGNING_STORE_PASSWORD" -alias "$SIGNING_KEY_ALIAS" > /dev/null 2>&1; then
-            echo "::error::서명 키를 열 수 없습니다. SIGNING_STORE_PASSWORD(비밀번호)와 SIGNING_KEY_ALIAS(studentcall)를 확인해 주세요."; exit 1
+            aliases=$(echo "$out" | grep -i 'PrivateKeyEntry' | cut -d, -f1 | tr '\n' ' ')
+            echo "::error::비밀번호는 맞지만 SIGNING_KEY_ALIAS 값이 키 이름과 다릅니다. 키 파일 안의 이름: ${aliases}"; exit 1
           fi
           export SIGNING_KEYSTORE_FILE="$RUNNER_TEMP/release.jks"
           set -o pipefail
