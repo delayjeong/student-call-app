@@ -29,6 +29,12 @@ public class MainActivity extends Activity {
         setContentView(buildUi());
         load();
         updateStatus();
+        if(prefs.getBoolean(Prefs.OLD_SERVER_CLEARED,false)){
+            prefs.edit().remove(Prefs.OLD_SERVER_CLEARED).apply();
+            new android.app.AlertDialog.Builder(this).setTitle("새 방식으로 바뀌었습니다")
+                    .setMessage("이제 학교 PC 서버 대신 Google Apps Script를 사용합니다.\n\n예전 서버 주소와 수신기 키를 지웠습니다. 관리자에게 받은 웹앱 주소(https://script.google.com/…/exec)와 새 수신기 키를 입력한 뒤 '호출 수신 시작'을 눌러 주세요.\n\n학년/반 설정은 그대로입니다.")
+                    .setPositiveButton("확인",null).show();
+        }
     }
 
     private View buildUi() {
@@ -88,7 +94,8 @@ public class MainActivity extends Activity {
     }
     private boolean save(){
         String url=serverUrl.getText().toString().trim();
-        if(!url.isEmpty()&&!url.startsWith("https://")){toast("웹앱 주소는 https:// 로 시작해야 합니다. Apps Script 배포 화면의 웹 앱 URL을 그대로 붙여넣으세요.");return false;}
+        if(!url.isEmpty()&&!Prefs.isAppsScriptUrl(url)){toast("웹앱 주소가 올바르지 않습니다. Apps Script → 배포 → 배포 관리의 '웹 앱 URL'(https://script.google.com/macros/s/…/exec)을 그대로 붙여넣으세요.");return false;}
+        int q=url.indexOf('?');if(q>=0)url=url.substring(0,q);
         String before=connectionSettings();
         prefs.edit().putString(Prefs.SERVER_URL,url)
                 .putString(Prefs.GRADE,String.valueOf(grade.getSelectedItemPosition()+1))

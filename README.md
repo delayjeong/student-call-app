@@ -72,6 +72,14 @@ Apps Script 편집기 → 프로젝트 설정(⚙) → **스크립트 속성**�
   교사 이름은 직접 입력하는 값이라 본인 확인은 하지 않습니다.
 - **개인정보**: 학생 이름이 Google 스프레드시트에 저장됩니다. 스프레드시트의 링크 공유를 끄고, 관리자만 접근하게 하세요.
 
+## APK 받기
+`main`에 코드가 올라가면 서명된 APK가 자동으로 만들어져 **[Releases](https://github.com/delayjeong/student-call-app/releases)**에 올라갑니다.
+가장 위(Latest)의 `StudentCallReceiver-번호.apk`를 받아 전자칠판에 설치하세요.
+
+- 예전 PC 서버 방식 앱(build-13 이하)을 덮어 설치하면, 처음 실행할 때 예전 서버 주소와 수신기 키가 자동으로 지워지고
+  "새 방식으로 바뀌었습니다" 안내가 나옵니다. 웹앱 주소와 새 수신기 키를 입력한 뒤 **호출 수신 시작**을 누르세요. 학년/반은 그대로 남습니다.
+- 웹앱 주소는 `https://script.google.com/macros/s/…/exec` 형식만 입력할 수 있습니다.
+
 ## APK 만들기 (GitHub Actions)
 Actions → `Build Android APK` → Run workflow → 완료 후 Artifacts에서 APK를 받습니다.
 

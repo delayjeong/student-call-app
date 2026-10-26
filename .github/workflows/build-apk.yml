@@ -96,16 +96,18 @@ jobs:
       # main에서 성공적으로 빌드된 APK는 Release Assets에도 올린다.
       # 사용자는 Releases 페이지에서 ZIP을 풀지 않고 .apk를 바로 다운로드할 수 있다.
       - name: Publish APK to GitHub Release
-        if: ${{ github.ref == 'refs/heads/main' }}
+        # 서명 키로 만든 release APK만 올린다 (debug APK는 업데이트 설치가 안 되므로 배포하지 않음)
+        if: ${{ github.ref == 'refs/heads/main' && env.HAS_KEYSTORE == 'true' }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
           name: Student Call build ${{ github.run_number }}
           body: |
-            Student Call Receiver 자동 빌드
+            학생 호출 수신기 (전자칠판용, Google Apps Script 방식)
             Commit: ${{ github.sha }}
 
-            서명 키가 등록된 경우 release APK, 미등록인 경우 debug APK입니다.
+            설치 후 앱에 Apps Script 웹앱 주소(https://script.google.com/macros/s/…/exec)와 수신기 키를 입력하세요.
+            이전 버전을 덮어 설치하면 예전 PC 서버 주소는 자동으로 지워집니다. 설치 안내: SETUP.md
           files: dist/*.apk
           fail_on_unmatched_files: true
           make_latest: true
