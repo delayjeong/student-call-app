@@ -1,5 +1,9 @@
 plugins { id 'com.android.application' }
 
+// 릴리스 서명: CI(GitHub Actions)에서는 저장소 Secrets로, 로컬에서는 환경변수로 키스토어를 넘긴다.
+// 같은 키스토어로 계속 서명해야 전자칠판에서 앱을 지우지 않고 업데이트할 수 있다.
+def keystoreFile = System.getenv('SIGNING_KEYSTORE_FILE')
+
 android {
     namespace 'kr.school.studentcall'
     compileSdk 35
@@ -8,7 +12,36 @@ android {
         applicationId 'kr.school.studentcall'
         minSdk 26
         targetSdk 35
-        versionCode 1
-        versionName '0.1.0'
+        // CI 실행 번호를 버전 코드로 써서 새 빌드가 항상 이전 빌드보다 높도록 한다
+        versionCode((System.getenv('GITHUB_RUN_NUMBER') ?: '2') as int)
+        versionName '0.2.0'
+    }
+
+    signingConfigs {
+        release {
+            if (keystoreFile) {
+                storeFile file(keystoreFile)
+                storePassword System.getenv('SIGNING_STORE_PASSWORD')
+                keyAlias System.getenv('SIGNING_KEY_ALIAS')
+                keyPassword System.getenv('SIGNING_KEY_PASSWORD')
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig keystoreFile ? signingConfigs.release : null
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    lint {
+        // 오버레이·부팅 수신 등 의도된 동작에 대한 경고로 릴리스 빌드가 멈추지 않도록
+        abortOnError false
     }
 }

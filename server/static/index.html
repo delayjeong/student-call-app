@@ -6,7 +6,7 @@
 <title>학생 호출</title>
 <style>
 :root{font-family:system-ui,-apple-system,"Noto Sans KR",sans-serif;background:#f3f5f8;color:#18212f}
-*{box-sizing:border-box} body{margin:0}.wrap{max-width:720px;margin:auto;padding:24px 18px 60px}.title{font-size:30px;font-weight:800;margin:8px 0 4px}.sub{color:#64748b;margin-bottom:22px}.card{background:white;border-radius:20px;padding:20px;box-shadow:0 8px 28px rgba(15,23,42,.08);margin-bottom:16px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field{margin:12px 0}.field label{display:block;font-size:14px;font-weight:700;margin-bottom:7px;color:#475569}input,select{width:100%;font-size:18px;border:1px solid #cbd5e1;border-radius:12px;padding:14px;background:#fff}button{border:0;border-radius:14px;padding:16px;font-size:18px;font-weight:800;cursor:pointer}.primary{width:100%;background:#1d4ed8;color:white;margin-top:14px}.primary:disabled{opacity:.45}.locations{display:flex;flex-wrap:wrap;gap:8px}.chip{background:#e8eefb;color:#1e3a8a;padding:10px 13px;font-size:15px}.chip.active{background:#1d4ed8;color:#fff}.status{border-radius:12px;padding:13px;margin-top:14px;display:none}.ok{display:block;background:#ecfdf5;color:#166534}.warn{display:block;background:#fff7ed;color:#9a3412}.err{display:block;background:#fef2f2;color:#991b1b}.small{font-size:13px;color:#64748b}.recent{font-size:14px}.recent-item{padding:10px 0;border-bottom:1px solid #eef2f7}.class-badge{font-weight:800}.settings summary{cursor:pointer;font-weight:700}
+*{box-sizing:border-box} body{margin:0}.wrap{max-width:720px;margin:auto;padding:24px 18px 60px}.title{font-size:30px;font-weight:800;margin:8px 0 4px}.sub{color:#64748b;margin-bottom:22px}.card{background:white;border-radius:20px;padding:20px;box-shadow:0 8px 28px rgba(15,23,42,.08);margin-bottom:16px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field{margin:12px 0}.field label{display:block;font-size:14px;font-weight:700;margin-bottom:7px;color:#475569}input,select{width:100%;font-size:18px;border:1px solid #cbd5e1;border-radius:12px;padding:14px;background:#fff}button{border:0;border-radius:14px;padding:16px;font-size:18px;font-weight:800;cursor:pointer}.primary{width:100%;background:#1d4ed8;color:white;margin-top:14px}.primary:disabled{opacity:.45}.locations{display:flex;flex-wrap:wrap;gap:8px}.chip{background:#e8eefb;color:#1e3a8a;padding:10px 13px;font-size:15px}.chip.active{background:#1d4ed8;color:#fff}.status{border-radius:12px;padding:13px;margin-top:14px;display:none}.ok{display:block;background:#ecfdf5;color:#166534}.warn{display:block;background:#fff7ed;color:#9a3412}.err{display:block;background:#fef2f2;color:#991b1b}.small{font-size:13px;color:#64748b}.recent{font-size:14px}.recent-item{padding:10px 0;border-bottom:1px solid #eef2f7}.class-badge{font-weight:800}.settings summary{cursor:pointer;font-weight:700}.recent-item{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.recent-item .txt{flex:1;min-width:180px}.mini{padding:8px 12px;font-size:14px;border-radius:10px;background:#e8eefb;color:#1e3a8a}.mini.cancel{background:#fef2f2;color:#991b1b}.cancelled .txt{text-decoration:line-through;color:#94a3b8}
 @media(max-width:520px){.grid{grid-template-columns:1fr}.title{font-size:26px}}
 </style>
 </head>
@@ -17,11 +17,12 @@
 
   <div class="card">
     <div class="grid">
-      <div class="field"><label>학년</label><select id="grade"><option>1</option><option>2</option><option>3</option></select></div>
+      <div class="field"><label>학년</label><select id="grade"></select></div>
       <div class="field"><label>반</label><select id="classNo"></select></div>
     </div>
     <div class="field"><label>학생 이름</label><input id="student" autocomplete="off" placeholder="예: 김민수"></div>
     <div class="field"><label>호출 위치</label><div class="locations" id="locations"></div><input id="customLocation" placeholder="직접 입력" style="margin-top:8px;display:none"></div>
+    <div id="devices" class="small"></div>
     <button class="primary" id="callBtn">학생 호출</button>
     <div id="status" class="status"></div>
   </div>
@@ -40,27 +41,68 @@
 </div>
 <script>
 const $=id=>document.getElementById(id);
-const classNo=$('classNo'); for(let i=1;i<=10;i++){const o=document.createElement('option');o.value=o.textContent=i;classNo.appendChild(o)}
-const locs=['교무실','행정실','상담실','보건실','기타']; let selectedLocation='교무실';
+const store={get:k=>{try{return localStorage.getItem('studentcall_'+k)}catch{return null}},set:(k,v)=>{try{localStorage.setItem('studentcall_'+k,v)}catch{}}};
+function fillSelect(el,n){el.innerHTML='';for(let i=1;i<=n;i++){const o=document.createElement('option');o.value=o.textContent=i;el.appendChild(o)}}
+const locs=['교무실','행정실','상담실','보건실','과학실','기타']; let selectedLocation='교무실';
 function renderLocations(){const box=$('locations');box.innerHTML='';locs.forEach(x=>{const b=document.createElement('button');b.type='button';b.className='chip '+(selectedLocation===x?'active':'');b.textContent=x;b.onclick=()=>{selectedLocation=x;$('customLocation').style.display=x==='기타'?'block':'none';renderLocations()};box.appendChild(b)})}renderLocations();
-['teacher','teacherKey','grade','classNo'].forEach(id=>{const el=$(id);const saved=localStorage.getItem('studentcall_'+id);if(saved)el.value=saved;el.addEventListener('change',()=>localStorage.setItem('studentcall_'+id,el.value))});
 function setStatus(text,type){const s=$('status');s.className='status '+type;s.textContent=text}
+function escapeHtml(s){return String(s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
+const classId=()=>`${$('grade').value}-${$('classNo').value}`;
+const keyHeader=()=>({'X-Teacher-Key':$('teacherKey').value});
+const errorText={'invalid key':'교사용 키가 올바르지 않습니다.','too many failed attempts':'키 입력 실패가 많아 잠시 차단되었습니다. 5분 후 다시 시도하세요.'};
+let connected={};
+
+async function init(){
+ let cfg={grades:3,classes:10};
+ try{const r=await fetch('/api/config');if(r.ok)cfg=await r.json()}catch{}
+ fillSelect($('grade'),cfg.grades);fillSelect($('classNo'),cfg.classes);
+ ['teacher','teacherKey','grade','classNo'].forEach(id=>{const el=$(id);const saved=store.get(id);if(saved)el.value=saved;el.addEventListener('change',()=>{store.set(id,el.value);if(id==='teacherKey'){loadDevices();loadRecent()}else renderDevices()})});
+ loadDevices();loadRecent();setInterval(loadDevices,15000);
+}
+async function loadDevices(){if(!$('teacherKey').value)return;try{const r=await fetch('/api/devices',{headers:keyHeader()});if(!r.ok)return;connected=(await r.json()).connectedClasses;renderDevices()}catch{}}
+function renderDevices(){const n=connected[classId()]||0;$('devices').textContent=`${classId()} 전자칠판 연결: ${n}대`+(n?'':' (연결된 전자칠판이 없습니다)')}
+
 async function callStudent(){
  const teacher=$('teacher').value.trim(), student=$('student').value.trim(), key=$('teacherKey').value;
  const location=selectedLocation==='기타'?$('customLocation').value.trim():selectedLocation;
- if(!teacher||!student||!location||!key){setStatus('선생님 이름, 학생 이름, 위치, 교사용 키를 확인해 주세요.','err');return}
+ if(!teacher||!student||!location||!key){setStatus('선생님 이름, 학생 이름, 위치, 교사용 키를 확인해 주세요. (교사 설정을 펼쳐 입력)','err');return}
  const btn=$('callBtn');btn.disabled=true;
  try{
-  const r=await fetch('/api/call',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({teacherKey:key,classId:`${$('grade').value}-${$('classNo').value}`,teacher,student,location})});
-  const j=await r.json(); if(!r.ok)throw new Error(j.error||'호출 실패');
-  setStatus(j.delivered>0?`호출 전송 완료 · 전자칠판 ${j.delivered}대 수신`:'호출은 저장됐지만 현재 연결된 대상 전자칠판이 없습니다.','ok');
-  $('student').value='';$('student').focus(); loadRecent();
- }catch(e){setStatus(e.message,'err')}finally{btn.disabled=false}
+  const r=await fetch('/api/call',{method:'POST',headers:{'Content-Type':'application/json',...keyHeader()},body:JSON.stringify({classId:classId(),teacher,student,location})});
+  const j=await r.json(); if(!r.ok)throw new Error(errorText[j.error]||j.error||'호출 실패');
+  setStatus(j.delivered>0?`호출 전송 완료 · 전자칠판 ${j.delivered}대로 보냄`:'호출은 기록됐지만 현재 연결된 대상 전자칠판이 없습니다.',j.delivered>0?'ok':'warn');
+  $('student').value='';$('student').focus(); loadRecent(); setTimeout(loadRecent,3000);
+ }catch(e){setStatus(e.message,'err')}finally{setTimeout(()=>{btn.disabled=false},3000)}
 }
 $('callBtn').onclick=callStudent;$('student').addEventListener('keydown',e=>{if(e.key==='Enter')callStudent()});
-async function loadRecent(){const key=$('teacherKey').value;if(!key)return;try{const r=await fetch('/api/recent?teacherKey='+encodeURIComponent(key));if(!r.ok)return;const j=await r.json();$('recent').innerHTML=j.items.length?j.items.map(x=>`<div class="recent-item"><span class="class-badge">${x.classId}</span> · ${escapeHtml(x.student)} → ${escapeHtml(x.location)} <span class="small">(${escapeHtml(x.teacher)})</span></div>`).join(''):'<div class="small">기록 없음</div>'}catch{}}
-function escapeHtml(s){return String(s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
-loadRecent();
+let recentItems=[];
+async function loadRecent(){if(!$('teacherKey').value)return;try{const r=await fetch('/api/recent',{headers:keyHeader()});if(!r.ok)return;recentItems=(await r.json()).items;renderRecent()}catch{}}
+function renderRecent(){
+ const box=$('recent');
+ if(!recentItems.length){box.innerHTML='<div class="small">기록 없음</div>';return}
+ box.innerHTML=recentItems.map((x,i)=>{
+  const time=new Date(x.sentAt).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});
+  const state=x.cancelled?'취소됨':(x.shown?`표시 ${x.shown}대`:'표시 확인 안 됨');
+  const recentEnough=Date.now()-x.sentAt<60000;
+  return `<div class="recent-item${x.cancelled?' cancelled':''}"><span class="txt"><span class="class-badge">${escapeHtml(x.classId)}</span> · ${escapeHtml(x.student)} → ${escapeHtml(x.location)} <span class="small">(${escapeHtml(x.teacher)} · ${time} · ${state})</span></span>`
+   +(!x.cancelled&&recentEnough?`<button class="mini cancel" data-act="cancel" data-i="${i}">호출 취소</button>`:'')
+   +`<button class="mini" data-act="resend" data-i="${i}">다시 표시</button></div>`}).join('');
+}
+$('recent').addEventListener('click',async e=>{
+ const b=e.target.closest('button[data-act]');if(!b)return;const x=recentItems[+b.dataset.i];b.disabled=true;
+ try{
+  if(b.dataset.act==='cancel'){
+   const r=await fetch('/api/cancel',{method:'POST',headers:{'Content-Type':'application/json',...keyHeader()},body:JSON.stringify({id:x.id})});
+   if(!r.ok)throw new Error('취소 실패');setStatus(`${x.classId} ${x.student} 호출을 취소했습니다.`,'ok');
+  }else{
+   const r=await fetch('/api/call',{method:'POST',headers:{'Content-Type':'application/json',...keyHeader()},body:JSON.stringify({classId:x.classId,teacher:x.teacher,student:x.student,location:x.location})});
+   const j=await r.json();if(!r.ok)throw new Error(errorText[j.error]||j.error||'호출 실패');
+   setStatus(j.delivered>0?`다시 표시 · 전자칠판 ${j.delivered}대로 보냄`:'현재 연결된 대상 전자칠판이 없습니다.',j.delivered>0?'ok':'warn');
+  }
+  loadRecent();setTimeout(loadRecent,3000);
+ }catch(err){setStatus(err.message,'err');b.disabled=false}
+});
+init();
 </script>
 </body>
 </html>

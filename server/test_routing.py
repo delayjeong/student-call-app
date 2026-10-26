@@ -1,11 +1,13 @@
 import asyncio
 import os
 
-os.environ['TEACHER_KEY']='test-teacher'
-os.environ['DEVICE_KEY']='test-device'
+os.environ['TEACHER_KEY']='test-teacher-key'
+os.environ['DEVICE_KEY']='test-device-key'
 
 from aiohttp.test_utils import TestClient, TestServer
 import app as student_app
+
+D={'X-Device-Key':'test-device-key'}
 
 async def read_data(resp):
     while True:
@@ -22,14 +24,14 @@ async def main():
     client=TestClient(server)
     await client.start_server()
     try:
-        s15=await client.get('/api/stream?classId=1-5&deviceId=a&key=test-device')
-        s14=await client.get('/api/stream?classId=1-4&deviceId=b&key=test-device')
+        s15=await client.get('/api/stream?classId=1-5&deviceId=a',headers=D)
+        s14=await client.get('/api/stream?classId=1-4&deviceId=b',headers=D)
         assert (await read_data(s15))['type']=='connected'
         assert (await read_data(s14))['type']=='connected'
 
         r=await client.post('/api/call',json={
-            'teacherKey':'test-teacher','classId':'1-5','teacher':'김수학','student':'김민수','location':'교무실'
-        })
+            'classId':'1-5','teacher':'김수학','student':'김민수','location':'교무실'
+        },headers={'X-Teacher-Key':'test-teacher-key'})
         j=await r.json()
         assert j['delivered']==1, j
         m15=await read_data(s15)
