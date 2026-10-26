@@ -44,11 +44,21 @@ jobs:
           if ! printf '%s' "$SIGNING_KEYSTORE_BASE64" | tr -d ' \r\n\t' | base64 -d > "$RUNNER_TEMP/release.jks" 2>/dev/null; then
             echo "::error::SIGNING_KEYSTORE_BASE64 값을 해석할 수 없습니다. README의 '서명 키 등록' 2단계 명령으로 다시 복사해 주세요."; exit 1
           fi
+          # 붙여넣을 때 섞인 앞뒤 공백·줄바꿈은 무시
+          trimmed=$(printf '%s' "$SIGNING_STORE_PASSWORD" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+          if [ "$trimmed" != "$SIGNING_STORE_PASSWORD" ]; then
+            echo "::warning::SIGNING_STORE_PASSWORD 앞뒤의 공백·줄바꿈을 제거하고 사용합니다."
+            export SIGNING_STORE_PASSWORD="$trimmed"
+          fi
+          kp=$(printf '%s' "$SIGNING_KEY_PASSWORD" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//'); export SIGNING_KEY_PASSWORD="$kp"
           # 원인을 구분해서 알려 준다 (비밀번호 값은 출력하지 않음)
           size=$(stat -c %s "$RUNNER_TEMP/release.jks")
           if ! out=$(keytool -list -keystore "$RUNNER_TEMP/release.jks" -storepass "$SIGNING_STORE_PASSWORD" 2>&1); then
             if echo "$out" | grep -qi "password"; then
-              echo "::error::키 파일(${size}바이트)은 정상이지만 SIGNING_STORE_PASSWORD 비밀번호가 맞지 않습니다. 앞뒤 공백 없이 다시 등록해 주세요."
+              # 값은 숨기고 특징만 알려 준다: 글자 수, 영문·숫자 외 문자(한글 등) 포함 여부
+              chars=$(printf '%s' "$SIGNING_STORE_PASSWORD" | LC_ALL=C.UTF-8 wc -m)
+              if printf '%s' "$SIGNING_STORE_PASSWORD" | LC_ALL=C grep -q '[^ -~]'; then kind="한글 등 영문·숫자·기호가 아닌 문자가 들어 있음"; else kind="영문·숫자·기호만 있음"; fi
+              echo "::error::키 파일(${size}바이트)은 정상이지만 SIGNING_STORE_PASSWORD 비밀번호가 맞지 않습니다. 등록된 값: ${chars}글자, ${kind}. PC에서 정한 비밀번호의 글자 수와 비교해 주세요."
             else
               echo "::error::SIGNING_KEYSTORE_BASE64를 복원한 파일(${size}바이트)이 키 파일이 아닙니다. PC의 release.jks 크기와 비교하고, README 2단계 명령으로 다시 복사해 주세요."
             fi
