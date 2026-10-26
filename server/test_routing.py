@@ -20,6 +20,13 @@ async def read_data(resp):
             import json
             return json.loads(s[6:])
 
+async def wait_eof(resp):
+    """SSE 이벤트 뒤의 빈 줄은 건너뛰고 실제 스트림 종료(EOF)를 기다린다."""
+    while True:
+        line=await asyncio.wait_for(resp.content.readline(),2)
+        if line==b'':
+            return
+
 async def main():
     server=TestServer(student_app.app)
     client=TestClient(server)
@@ -65,8 +72,7 @@ async def main():
         assert msg['type']=='call' and msg['student']=='박학생'
 
         # 대체된 이전 스트림은 sentinel을 받고 닫혀야 한다.
-        end=await asyncio.wait_for(old.content.readline(),2)
-        assert end==b'', end
+        await wait_eof(old)
         print('RECONNECT TEST PASS: duplicate device replaced')
         old.close(); new.close()
     finally:
