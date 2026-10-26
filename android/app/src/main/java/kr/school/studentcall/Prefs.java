@@ -9,6 +9,8 @@ import java.util.UUID;
 final class Prefs {
     static final String SERVER_URL="serverUrl", GRADE="grade", CLASS_NO="classNo", DEVICE_KEY="deviceKey", DEVICE_ID="deviceId";
     static final String ENABLED="enabled", AUTO_START="autoStart", SOUND="sound";
+    /** 서버(Apps Script)가 확인 응답으로 알려 주는 운영 시간. 다음 날 시작 시각 계산에 쓴다. */
+    static final String ACTIVE_START="activeStart", ACTIVE_END="activeEnd";
     static final int MAX_GRADE=6, MAX_CLASS=20;
 
     private Prefs(){}

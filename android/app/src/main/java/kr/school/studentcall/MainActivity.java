@@ -40,7 +40,7 @@ public class MainActivity extends Activity {
         TextView sub = text("이 전자칠판의 반을 한 번 등록하면 해당 반 호출만 표시됩니다.", 18, false); sub.setTextColor(Color.DKGRAY); sub.setPadding(0,4,0,22); root.addView(sub);
 
         LinearLayout card = new LinearLayout(this); card.setOrientation(LinearLayout.VERTICAL); card.setPadding(28,24,28,28); card.setBackground(round(Color.WHITE, 22)); root.addView(card, new LinearLayout.LayoutParams(-1,-2));
-        serverUrl = input(card,"서버 주소","http://192.168.1.10:8080");
+        serverUrl = input(card,"웹앱 주소 (Apps Script 배포 URL)","https://script.google.com/macros/s/…/exec");
         LinearLayout row = new LinearLayout(this); row.setOrientation(LinearLayout.HORIZONTAL); card.addView(row);
         grade = spinner(row,"학년",Prefs.MAX_GRADE); classNo = spinner(row,"반",Prefs.MAX_CLASS);
         deviceKey = input(card,"수신기 키","관리자에게 받은 DEVICE_KEY");
@@ -55,7 +55,7 @@ public class MainActivity extends Activity {
         Button test = button("테스트 팝업", Color.rgb(22,101,52)); card.addView(test); test.setOnClickListener(v -> testPopup());
 
         status = text("",18,true); status.setPadding(18,18,18,18); root.addView(status, new LinearLayout.LayoutParams(-1,-2));
-        TextView foot = text("※ 알림 권한도 허용해 주세요. 운영 시에는 HTTPS 서버 사용을 권장합니다.",14,false); foot.setTextColor(Color.GRAY); root.addView(foot);
+        TextView foot = text("※ 알림 권한도 허용해 주세요. 운영 시간 밖에는 호출을 확인하지 않습니다.",14,false); foot.setTextColor(Color.GRAY); root.addView(foot);
         return scroll;
     }
 
@@ -87,8 +87,8 @@ public class MainActivity extends Activity {
         sound.setChecked(prefs.getBoolean(Prefs.SOUND,true));
     }
     private boolean save(){
-        String url=serverUrl.getText().toString().trim().replaceAll("/+$","");
-        if(!url.isEmpty()&&!url.startsWith("http://")&&!url.startsWith("https://")){toast("서버 주소는 http:// 또는 https:// 로 시작해야 합니다.");return false;}
+        String url=serverUrl.getText().toString().trim();
+        if(!url.isEmpty()&&!url.startsWith("https://")){toast("웹앱 주소는 https:// 로 시작해야 합니다. Apps Script 배포 화면의 웹 앱 URL을 그대로 붙여넣으세요.");return false;}
         String before=connectionSettings();
         prefs.edit().putString(Prefs.SERVER_URL,url)
                 .putString(Prefs.GRADE,String.valueOf(grade.getSelectedItemPosition()+1))
@@ -118,7 +118,7 @@ public class MainActivity extends Activity {
     }
     private void startReceiver(){
         if(!save())return;
-        if(prefs.getString(Prefs.SERVER_URL,"").isEmpty()||prefs.getString(Prefs.DEVICE_KEY,"").isEmpty()){toast("서버 주소와 수신기 키를 입력해 주세요.");return;}
+        if(prefs.getString(Prefs.SERVER_URL,"").isEmpty()||prefs.getString(Prefs.DEVICE_KEY,"").isEmpty()){toast("웹앱 주소와 수신기 키를 입력해 주세요.");return;}
         if(!Settings.canDrawOverlays(this)){toast("먼저 '다른 앱 위에 표시' 권한을 허용해 주세요.");requestOverlay();return;}
         if(Build.VERSION.SDK_INT>=33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},100);}
         prefs.edit().putBoolean(Prefs.ENABLED,true).apply();
@@ -133,7 +133,8 @@ public class MainActivity extends Activity {
     }
     private void updateStatus(){
         boolean overlay=Settings.canDrawOverlays(this);boolean on=prefs.getBoolean(Prefs.ENABLED,false);
-        status.setText("등록 반: "+Prefs.classId(this)+"   ·   수신: "+(on?"켜짐":"꺼짐")+"   ·   오버레이 권한: "+(overlay?"허용":"미허용")+"\n호출 수신 시작 후 상단 알림에 '연결됨 · 호출 대기 중'이 표시되면 정상입니다.");
+        String hours=prefs.getString(Prefs.ACTIVE_START,ActiveHours.DEFAULT_START)+"~"+prefs.getString(Prefs.ACTIVE_END,ActiveHours.DEFAULT_END);
+        status.setText("등록 반: "+Prefs.classId(this)+"   ·   수신: "+(on?"켜짐":"꺼짐")+"   ·   오버레이 권한: "+(overlay?"허용":"미허용")+"   ·   운영 시간: "+hours+"\n호출 수신 시작 후 상단 알림에 '연결됨 · 10초마다 확인'이 표시되면 정상입니다.");
         status.setBackground(round(overlay&&on?Color.rgb(236,253,245):Color.rgb(255,247,237),14));
     }
     private void toast(String s){Toast.makeText(this,s,Toast.LENGTH_LONG).show();}

@@ -26,6 +26,9 @@ jobs:
         with:
           gradle-version: '8.9'
 
+      - name: Unit tests
+        run: gradle -p android :app:testDebugUnitTest
+
       # 저장소 Settings → Secrets and variables → Actions 에 아래 4개를 등록하면
       # 항상 같은 키로 서명된 release APK가 만들어져, 전자칠판에서 지우지 않고 업데이트할 수 있습니다.
       #   SIGNING_KEYSTORE_BASE64, SIGNING_STORE_PASSWORD, SIGNING_KEY_ALIAS, SIGNING_KEY_PASSWORD

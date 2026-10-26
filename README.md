@@ -12,79 +12,65 @@
 15초 후 자동으로 닫힙니다.
 ```
 
-구성:
-- `server/`: 교사용 웹 + 반별 실시간(SSE) 호출 서버 (Python, aiohttp)
-- `android/`: 전자칠판용 수신 앱 (Android 8 ~ 15, Rockchip RK3588 전자칠판에서 사용 목적)
+학교에 서버 PC를 켜 둘 필요 없이 **Google 스프레드시트 + Apps Script**로 동작합니다.
 
-Firebase·Google 계정 없이 학교 안 서버 한 대로 동작합니다.
+```
+선생님 휴대폰·PC ── Apps Script 교사용 웹 ──▶ Google 스프레드시트 (호출 기록)
+                                              ▲
+전자칠판 APK ── 10초마다 "우리 반 새 호출 있나요?" ──┘  → 있으면 팝업
+```
+
+| 폴더 | 내용 |
+|---|---|
+| `apps-script/` | Apps Script 코드 (`Code.gs`, `Teacher.html`) — 스프레드시트에 붙여넣기 |
+| `android/` | 전자칠판 수신 앱 (Android 8 ~ 15) |
+| `legacy/python-server/` | 이전 방식(학교 PC에서 실행하는 Python 서버). 참고용, 현재 APK와는 호환되지 않음 |
+
+**설치 방법은 [SETUP.md](SETUP.md)를 따라 하세요.**
 
 ## 기능
-**교사용 웹**
-- 학년/반 선택, 학생 이름 입력, 위치 빠른 선택(교무실·행정실·상담실·보건실·과학실·기타 직접 입력)
+**교사용 웹 (Apps Script)**
+- 학년/반 선택, 학생 이름, 위치 빠른 선택(교무실·행정실·상담실·보건실·과학실·기타 직접 입력)
 - 선생님 이름·교사용 키는 브라우저에 저장 → 평소에는 학생 이름만 입력하고 호출
-- 선택한 반의 전자칠판 연결 대수 표시
+- 선택한 반에서 최근 확인한 전자칠판 대수 표시
 - 연속 전송 방지(3초 잠금)
-- 최근 호출: 전자칠판 **표시 확인**(표시된 대수), **호출 취소**(1분 이내), **다시 표시**
+- 최근 호출: 전자칠판 **표시 확인**(표시된 대수), **호출 취소**(3분 이내), **다시 표시**
+- 운영 시간 밖에는 호출 버튼이 잠김
 
 **전자칠판 앱**
 - 다른 앱(Flexcil, PDF 등) 위에 중앙 팝업, 알림음, [확인] 버튼, 15초 후 자동 닫힘
-- 호출이 여러 건이면 대기열에 넣어 순서대로 표시
+- 호출이 여러 건이면 순서대로 표시
 - 학년/반 드롭다운으로 한 번만 등록
-- ☑ 전자칠판을 켜면 자동으로 수신 시작 (앱 업데이트 후에도 자동 재시작)
-- ☑ 호출음 사용
-- 연결이 끊기면 자동 재접속
+- 전자칠판을 켜면 자동으로 수신 시작, 호출음 켜기/끄기
+- **운영 시간(기본 08:00~22:00, 한국 시간)에만 확인** — 밖에서는 Google에 요청하지 않음
 
-## 서버 실행
-Python 3.11+ 필요.
+**스프레드시트**
+- `호출기록` 시트에 모든 호출이 남음 (번호, 시각, 반, 선생님, 학생, 위치, 상태, 표시 대수)
+- 보관 기간(기본 7일)이 지난 기록은 매일 새벽 3시에 자동 삭제
 
-키는 **12자 이상**, 교사용 키와 수신기 키는 **서로 달라야** 합니다. 조건을 만족하지 않으면 서버가 시작되지 않습니다.
-키 만들기: `python -c "import secrets; print(secrets.token_urlsafe(24))"`
+## 설정 바꾸기
+Apps Script 편집기 → 프로젝트 설정(⚙) → **스크립트 속성**에서 바꾼 뒤, 스프레드시트 메뉴 **학생 호출 → 설정 변경 반영**을 누르세요.
+전자칠판은 다음 확인 때 새 값을 받으므로 APK를 다시 설치할 필요가 없습니다.
 
-```bash
-cd server
-pip install -r requirements.txt
-export TEACHER_KEY='여기에-교사용-키'
-export DEVICE_KEY='여기에-수신기-키'
-python app.py
-```
-
-Windows (명령 프롬프트):
-```bat
-cd server
-pip install -r requirements.txt
-set TEACHER_KEY=여기에-교사용-키
-set DEVICE_KEY=여기에-수신기-키
-start_server.bat
-```
-
-Docker:
-```bash
-docker build -t student-call server
-docker run -d --restart unless-stopped -p 8080:8080 -e TEACHER_KEY=... -e DEVICE_KEY=... student-call
-```
-
-선택 환경변수:
-| 변수 | 기본값 | 설명 |
+| 속성 | 기본값 | 설명 |
 |---|---|---|
-| `PORT` | `8080` | 포트 |
-| `GRADES` | `3` | 교사용 웹의 학년 수 |
-| `CLASSES` | `10` | 교사용 웹의 학년당 반 수 |
+| `ACTIVE_HOURS` | `08:00-22:00` | 운영 시간 (한국 시간). 밖에서는 호출 불가, 전자칠판도 확인하지 않음 |
+| `POLL_SECONDS` | `10` | 전자칠판 확인 간격(초, 3~60). 줄이면 빨라지지만 요청이 늘어남 |
+| `GRADES` / `CLASSES` | `3` / `10` | 교사용 웹의 학년 수 / 학년당 반 수 |
+| `LOCATIONS` | `교무실,행정실,상담실,보건실,과학실` | 위치 빠른 선택 버튼 (쉼표로 구분) |
+| `KEEP_DAYS` | `7` | 호출 기록 보관 일수 |
+| `TEACHER_KEY` / `DEVICE_KEY` | (자동 생성) | 메뉴 **키 새로 만들기**로 바꾸세요 |
 
-교사용 웹: `http://서버IP:8080/`
-
-서버는 전자칠판과 선생님 기기가 모두 접속할 수 있는 학교 내부 PC에서 항상 켜 두세요. 서버 IP는 고정해 두는 것이 좋습니다.
-
-## 전자칠판 설치
-1. APK 설치 (아래 "APK 만들기" 참고)
-2. 앱 실행 → 서버 주소(예: `http://192.168.1.10:8080`), 학년/반, 수신기 키(`DEVICE_KEY`) 입력
-3. `1. 다른 앱 위에 표시 권한 허용`
-   - 설정 화면이 열리지 않는 기기: 설정 → 앱 → 특별한 앱 액세스 → 다른 앱 위에 표시
-   - 또는 관리자 PC에서 `adb shell appops set kr.school.studentcall SYSTEM_ALERT_WINDOW allow`
-4. `2. 배터리 최적화 제외`
-5. `3. 호출 수신 시작` → 알림 권한 허용
-6. `테스트 팝업`으로 표시 확인, 교사용 웹에서 해당 반 연결 대수가 1대 이상인지 확인
-
-상단 알림에 `2-3 연결됨 · 호출 대기 중`이 보이면 정상입니다. 이후에는 전자칠판을 껐다 켜도 자동으로 수신을 시작합니다.
+## 동작 방식과 한계
+- **지연**: 호출 후 전자칠판 표시까지 보통 수 초, 가장 늦으면 확인 간격 + 2~3초(기본 약 13초).
+- **요청량**: 전자칠판 1대가 운영 시간 14시간 동안 10초마다 확인하면 하루 약 5,000회입니다.
+  확인 요청은 Apps Script 캐시만 읽도록 만들어, 무료 Gmail 계정의 "속성 읽기/쓰기 하루 5만 회" 제한에 걸리지 않습니다.
+  Google은 웹앱 요청 수의 하루 상한을 공개하지 않으므로, 처음에는 몇 반에서 시험한 뒤 늘리세요.
+  Apps Script 편집기의 **실행** 메뉴에서 오류가 늘어나는지 확인할 수 있습니다.
+- 운영 시간 밖, 또는 전자칠판이 꺼져 있던 동안 보낸 호출은 표시되지 않습니다. 3분이 지난 호출도 표시하지 않습니다.
+- **보안**: 교사용 키 / 수신기 키 두 개를 공유하는 구조입니다. 웹앱 주소와 교사용 키를 학생에게 노출하지 마세요.
+  교사 이름은 직접 입력하는 값이라 본인 확인은 하지 않습니다.
+- **개인정보**: 학생 이름이 Google 스프레드시트에 저장됩니다. 스프레드시트의 링크 공유를 끄고, 관리자만 접근하게 하세요.
 
 ## APK 만들기 (GitHub Actions)
 Actions → `Build Android APK` → Run workflow → 완료 후 Artifacts에서 APK를 받습니다.
@@ -108,31 +94,16 @@ Actions → `Build Android APK` → Run workflow → 완료 후 Artifacts에서 
 
 `release.jks`는 절대 저장소에 커밋하지 마세요 (`.gitignore`에 포함되어 있음).
 
-## API
-모든 키는 HTTP 헤더로 전달합니다 (주소에 넣지 않으므로 서버 로그에 남지 않음).
+## 전자칠판 확인 API
+`GET <웹앱 주소>?action=poll&classId=2-3&deviceId=<기기ID>&key=<수신기 키>&after=<마지막 번호>&acked=<표시한 번호들>`
 
-| 메서드 | 경로 | 헤더 | 설명 |
-|---|---|---|---|
-| GET | `/api/health` | – | 상태, 전체 연결 수 |
-| GET | `/api/config` | – | 학년·반 수 |
-| GET | `/api/devices` | `X-Teacher-Key` | 반별 연결 대수 |
-| POST | `/api/call` | `X-Teacher-Key` | `{classId:"2-3", teacher, student, location}` |
-| POST | `/api/cancel` | `X-Teacher-Key` | `{id}` |
-| GET | `/api/recent` | `X-Teacher-Key` | 최근 20건 (`shown`, `cancelled` 포함) |
-| GET | `/api/stream?classId=2-3&deviceId=…` | `X-Device-Key` | 전자칠판 수신(SSE) |
-| POST | `/api/ack` | `X-Device-Key` | `{id, deviceId}` 팝업 표시 확인 |
-
-`classId`는 `학년-반` 숫자 형식(`2-3`)만 허용합니다. 같은 IP에서 키가 5분 안에 10번 틀리면 잠시 차단됩니다.
+- `after`가 비어 있으면 지난 호출 없이 기준 번호(`lastId`)만 돌려줍니다 (앱 시작 / 운영 시간 시작).
+- `acked`: 직전 확인 이후 팝업을 표시한 호출 번호 (쉼표 구분). 교사 화면의 "표시 N대"가 됩니다.
+- 응답: `{ok, lastId, pollSeconds, activeStart, activeEnd, calls:[{id, classId, teacher, student, location, sentAt}], cancelled:[id…]}`
 
 ## 테스트
 ```bash
-cd server
-python test_server.py
-python test_routing.py
+node apps-script/test/test.js            # Apps Script 로직 (Google 서비스 모형 위에서 실행)
+cd apps-script && node test/teacher-page.js   # 교사용 화면을 브라우저로 검사 (Playwright 필요)
+gradle -p android :app:testDebugUnitTest      # 운영 시간 계산
 ```
-
-## 보안 범위와 한계
-- 교사용 키 / 수신기 키 2개를 공유하는 구조입니다. 수신기 키를 아는 사람은 어느 반 호출이든 받아 볼 수 있으므로, 키를 학생에게 노출하지 마세요.
-- 교사 이름은 직접 입력하는 값이라 본인 확인은 하지 않습니다.
-- 기본 설정은 학교 내부망용 HTTP입니다. 학생 이름이 오가므로 운영 시에는 HTTPS(예: Caddy 등 앞단 프록시)와 서버 접근 제한을 권장합니다.
-- 호출 기록은 서버 메모리에만 있고, 서버를 다시 시작하면 사라집니다.

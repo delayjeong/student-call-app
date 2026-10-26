@@ -1,0 +1,34 @@
+name: Tests
+on:
+  push:
+    paths: ['apps-script/**', 'legacy/python-server/**', '.github/workflows/tests.yml']
+  pull_request:
+jobs:
+  apps-script:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - name: Apps Script logic
+        run: node apps-script/test/test.js
+      - name: Teacher page (browser)
+        working-directory: apps-script/test
+        run: |
+          npm init -y > /dev/null
+          npm install --no-save playwright@1.56.1 > /dev/null
+          npx playwright install --with-deps chromium > /dev/null
+          node teacher-page.js
+  legacy-python-server:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r legacy/python-server/requirements.txt
+      - working-directory: legacy/python-server
+        run: |
+          python test_server.py
+          python test_routing.py

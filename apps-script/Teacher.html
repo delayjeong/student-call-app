@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<base target="_top">
+<meta charset="utf-8">
+<style>
+:root{font-family:system-ui,-apple-system,"Noto Sans KR",sans-serif;background:#f3f5f8;color:#18212f}
+*{box-sizing:border-box} body{margin:0;background:#f3f5f8}.wrap{max-width:720px;margin:auto;padding:24px 16px 60px}.title{font-size:30px;font-weight:800;margin:8px 0 4px}.sub{color:#64748b;margin-bottom:22px}.card{background:white;border-radius:20px;padding:20px;box-shadow:0 8px 28px rgba(15,23,42,.08);margin-bottom:16px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field{margin:12px 0}.field label{display:block;font-size:14px;font-weight:700;margin-bottom:7px;color:#475569}input,select{width:100%;font-size:18px;border:1px solid #cbd5e1;border-radius:12px;padding:14px;background:#fff;color:#18212f}button{border:0;border-radius:14px;padding:16px;font-size:18px;font-weight:800;cursor:pointer;font-family:inherit}.primary{width:100%;background:#1d4ed8;color:white;margin-top:14px}.primary:disabled{opacity:.45;cursor:default}.locations{display:flex;flex-wrap:wrap;gap:8px}.chip{background:#e8eefb;color:#1e3a8a;padding:10px 13px;font-size:15px}.chip.active{background:#1d4ed8;color:#fff}.status{border-radius:12px;padding:13px;margin-top:14px;display:none}.ok{display:block;background:#ecfdf5;color:#166534}.warn{display:block;background:#fff7ed;color:#9a3412}.err{display:block;background:#fef2f2;color:#991b1b}.small{font-size:13px;color:#64748b}.recent{font-size:14px}.recent-item{padding:10px 0;border-bottom:1px solid #eef2f7;display:flex;align-items:center;gap:8px;flex-wrap:wrap}.recent-item .txt{flex:1;min-width:180px}.class-badge{font-weight:800}.settings summary{cursor:pointer;font-weight:700}.mini{padding:8px 12px;font-size:14px;border-radius:10px;background:#e8eefb;color:#1e3a8a}.mini.cancel{background:#fef2f2;color:#991b1b}.mini:disabled{opacity:.5}.cancelled .txt{text-decoration:line-through;color:#94a3b8}.head{display:flex;justify-content:space-between;align-items:center}
+@media(max-width:520px){.grid{grid-template-columns:1fr}.title{font-size:26px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="title">🔔 학생 호출</div>
+  <div class="sub">호출할 반을 선택하고 학생 이름만 입력하세요. <span id="hours"></span></div>
+
+  <div class="card">
+    <div class="grid">
+      <div class="field"><label for="grade">학년</label><select id="grade"></select></div>
+      <div class="field"><label for="classNo">반</label><select id="classNo"></select></div>
+    </div>
+    <div class="field"><label for="student">학생 이름</label><input id="student" autocomplete="off" maxlength="30" placeholder="예: 김민수"></div>
+    <div class="field"><label>호출 위치</label><div class="locations" id="locations"></div><input id="customLocation" maxlength="40" placeholder="직접 입력" style="margin-top:8px;display:none"></div>
+    <div id="devices" class="small"></div>
+    <button class="primary" id="callBtn">학생 호출</button>
+    <div id="status" class="status"></div>
+  </div>
+
+  <details class="card settings" id="settings">
+    <summary>교사 설정</summary>
+    <div class="field"><label for="teacher">선생님 이름</label><input id="teacher" maxlength="30" placeholder="예: 김수학"></div>
+    <div class="field"><label for="teacherKey">교사용 키</label><input id="teacherKey" type="password" autocomplete="off" placeholder="관리자에게 받은 키"></div>
+    <div class="small">이 값은 이 브라우저에만 저장됩니다.</div>
+  </details>
+
+  <div class="card">
+    <div class="head"><b>최근 호출</b><button class="mini" id="refreshBtn" type="button">새로고침</button></div>
+    <div id="recent" class="recent"><div class="small" style="margin-top:8px">교사용 키를 입력하면 최근 기록이 표시됩니다.</div></div>
+  </div>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+const store={get:k=>{try{return localStorage.getItem('studentcall_'+k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem('studentcall_'+k,v)}catch(e){}}};
+function escapeHtml(s){return String(s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
+function setStatus(text,type){const s=$('status');s.className='status '+type;s.textContent=text}
+function fillSelect(el,n){el.innerHTML='';for(let i=1;i<=n;i++){const o=document.createElement('option');o.value=o.textContent=i;el.appendChild(o)}}
+/** google.script.run을 Promise로 */
+function run(fn,...args){return new Promise((resolve,reject)=>google.script.run.withSuccessHandler(resolve).withFailureHandler(e=>reject(new Error(e&&e.message||String(e))))[fn](...args))}
+
+const classId=()=>`${$('grade').value}-${$('classNo').value}`;
+const key=()=>$('teacherKey').value.trim();
+let locs=[],selectedLocation='',online={},recentItems=[],freshMs=180000,pollSeconds=10,activeStart='08:00',activeEnd='22:00',sending=false;
+const toMin=t=>{const[h,m]=t.split(':');return +h*60+ +m};
+/** 한국 시간 기준 운영 시간 안인지 (서버도 같은 기준으로 다시 확인한다) */
+function activeNow(){const p=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Seoul',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date());const n=toMin(p),a=toMin(activeStart),b=toMin(activeEnd);return a<=b?n>=a&&n<b:n>=a||n<b}
+function renderHours(){const on=activeNow();$('hours').textContent=`(운영 시간 ${activeStart}~${activeEnd})`;if(!sending)$('callBtn').disabled=!on;$('callBtn').textContent=on?'학생 호출':`운영 시간이 아닙니다 (${activeStart}~${activeEnd})`}
+
+function renderLocations(){const box=$('locations');box.innerHTML='';locs.concat(['기타']).forEach(x=>{const b=document.createElement('button');b.type='button';b.className='chip '+(selectedLocation===x?'active':'');b.textContent=x;b.onclick=()=>{selectedLocation=x;$('customLocation').style.display=x==='기타'?'block':'none';if(x==='기타')$('customLocation').focus();renderLocations()};box.appendChild(b)})}
+function renderDevices(){if(!key()){$('devices').textContent='';return}const n=online[classId()]||0;$('devices').textContent=`${classId()} 전자칠판 연결: ${n}대`+(n?'':' (최근 확인한 전자칠판이 없습니다)')}
+
+async function init(){
+ try{const cfg=await run('getConfig');fillSelect($('grade'),cfg.grades);fillSelect($('classNo'),cfg.classes);locs=cfg.locations;pollSeconds=cfg.pollSeconds;activeStart=cfg.activeStart;activeEnd=cfg.activeEnd}
+ catch(e){fillSelect($('grade'),3);fillSelect($('classNo'),10);locs=['교무실','행정실','상담실','보건실','과학실'];setStatus('설정을 불러오지 못했습니다: '+e.message,'err')}
+ selectedLocation=locs[0]||'기타';renderLocations();renderHours();setInterval(renderHours,30000);
+ ['teacher','teacherKey','grade','classNo'].forEach(id=>{const el=$(id);const saved=store.get(id);if(saved)el.value=saved;el.addEventListener('change',()=>{store.set(id,el.value.trim());if(id==='teacherKey')refresh();else renderDevices()})});
+ if(!key()||!$('teacher').value.trim())$('settings').open=true;
+ refresh();setInterval(()=>{if(!document.hidden)refresh()},20000);
+}
+
+async function refresh(){
+ if(!key()){renderDevices();return}
+ try{const d=await run('getDashboard',key());online=d.online;recentItems=d.items;freshMs=d.freshMs;renderDevices();renderRecent()}
+ catch(e){$('recent').innerHTML=`<div class="small" style="margin-top:8px">${escapeHtml(e.message)}</div>`}
+}
+
+async function callStudent(){
+ const teacher=$('teacher').value.trim(), student=$('student').value.trim();
+ const location=selectedLocation==='기타'?$('customLocation').value.trim():selectedLocation;
+ if(!teacher||!key()){$('settings').open=true;setStatus('교사 설정에서 선생님 이름과 교사용 키를 입력해 주세요.','err');return}
+ if(!student||!location){setStatus('학생 이름과 호출 위치를 확인해 주세요.','err');return}
+ if(!activeNow()){setStatus(`운영 시간(${activeStart}~${activeEnd})이 아니라 전자칠판에 표시되지 않습니다.`,'err');return}
+ const btn=$('callBtn');btn.disabled=true;sending=true;setStatus('호출 보내는 중…','warn');
+ let ok=false;
+ try{
+  const r=await run('callStudent',key(),{classId:classId(),teacher,student,location});ok=true;
+  setStatus(r.onlineDevices>0?`호출했습니다 · ${classId()} 전자칠판 ${r.onlineDevices}대가 ${pollSeconds}초 안에 표시합니다.`:`호출은 기록됐지만 ${classId()}에서 최근 확인한 전자칠판이 없습니다.`,r.onlineDevices>0?'ok':'warn');
+  $('student').value='';$('student').focus();refresh();setTimeout(refresh,(pollSeconds+3)*1000);
+ }catch(e){setStatus(e.message,'err')}
+ finally{setTimeout(()=>{sending=false;renderHours()},ok?3000:0)} // 연속 전송 방지
+}
+$('callBtn').onclick=callStudent;$('student').addEventListener('keydown',e=>{if(e.key==='Enter')callStudent()});
+$('refreshBtn').onclick=refresh;
+
+function renderRecent(){
+ const box=$('recent');
+ if(!recentItems.length){box.innerHTML='<div class="small" style="margin-top:8px">기록 없음</div>';return}
+ box.innerHTML=recentItems.map((x,i)=>{
+  const time=new Date(x.sentAt).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});
+  const state=x.cancelled?'취소됨':(x.shown?`표시 ${x.shown}대`:'표시 확인 전');
+  const cancellable=!x.cancelled&&Date.now()-x.sentAt<freshMs;
+  return `<div class="recent-item${x.cancelled?' cancelled':''}"><span class="txt"><span class="class-badge">${escapeHtml(x.classId)}</span> · ${escapeHtml(x.student)} → ${escapeHtml(x.location)} <span class="small">(${escapeHtml(x.teacher)} · ${time} · ${state})</span></span>`
+   +(cancellable?`<button class="mini cancel" data-act="cancel" data-i="${i}">호출 취소</button>`:'')
+   +`<button class="mini" data-act="resend" data-i="${i}">다시 표시</button></div>`}).join('');
+}
+$('recent').addEventListener('click',async e=>{
+ const b=e.target.closest('button[data-act]');if(!b)return;const x=recentItems[+b.dataset.i];b.disabled=true;
+ try{
+  if(b.dataset.act==='cancel'){await run('cancelCall',key(),x.id);setStatus(`${x.classId} ${x.student} 호출을 취소했습니다.`,'ok')}
+  else{const r=await run('callStudent',key(),{classId:x.classId,teacher:x.teacher,student:x.student,location:x.location});setStatus(r.onlineDevices>0?`다시 표시 · ${x.classId} 전자칠판 ${r.onlineDevices}대`:`${x.classId}에서 최근 확인한 전자칠판이 없습니다.`,r.onlineDevices>0?'ok':'warn')}
+  refresh();
+ }catch(err){setStatus(err.message,'err');b.disabled=false}
+});
+init();
+</script>
+</body>
+</html>
