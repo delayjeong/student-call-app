@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>학생 호출</title>
+<style>
+:root{font-family:system-ui,-apple-system,"Noto Sans KR",sans-serif;background:#f3f5f8;color:#18212f}
+*{box-sizing:border-box} body{margin:0}.wrap{max-width:720px;margin:auto;padding:24px 18px 60px}.title{font-size:30px;font-weight:800;margin:8px 0 4px}.sub{color:#64748b;margin-bottom:22px}.card{background:white;border-radius:20px;padding:20px;box-shadow:0 8px 28px rgba(15,23,42,.08);margin-bottom:16px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field{margin:12px 0}.field label{display:block;font-size:14px;font-weight:700;margin-bottom:7px;color:#475569}input,select{width:100%;font-size:18px;border:1px solid #cbd5e1;border-radius:12px;padding:14px;background:#fff}button{border:0;border-radius:14px;padding:16px;font-size:18px;font-weight:800;cursor:pointer}.primary{width:100%;background:#1d4ed8;color:white;margin-top:14px}.primary:disabled{opacity:.45}.locations{display:flex;flex-wrap:wrap;gap:8px}.chip{background:#e8eefb;color:#1e3a8a;padding:10px 13px;font-size:15px}.chip.active{background:#1d4ed8;color:#fff}.status{border-radius:12px;padding:13px;margin-top:14px;display:none}.ok{display:block;background:#ecfdf5;color:#166534}.warn{display:block;background:#fff7ed;color:#9a3412}.err{display:block;background:#fef2f2;color:#991b1b}.small{font-size:13px;color:#64748b}.recent{font-size:14px}.recent-item{padding:10px 0;border-bottom:1px solid #eef2f7}.class-badge{font-weight:800}.settings summary{cursor:pointer;font-weight:700}
+@media(max-width:520px){.grid{grid-template-columns:1fr}.title{font-size:26px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="title">🔔 학생 호출</div>
+  <div class="sub">호출할 반을 선택하고 학생 이름만 입력하세요.</div>
+
+  <div class="card">
+    <div class="grid">
+      <div class="field"><label>학년</label><select id="grade"><option>1</option><option>2</option><option>3</option></select></div>
+      <div class="field"><label>반</label><select id="classNo"></select></div>
+    </div>
+    <div class="field"><label>학생 이름</label><input id="student" autocomplete="off" placeholder="예: 김민수"></div>
+    <div class="field"><label>호출 위치</label><div class="locations" id="locations"></div><input id="customLocation" placeholder="직접 입력" style="margin-top:8px;display:none"></div>
+    <button class="primary" id="callBtn">학생 호출</button>
+    <div id="status" class="status"></div>
+  </div>
+
+  <details class="card settings">
+    <summary>교사 설정</summary>
+    <div class="field"><label>선생님 이름</label><input id="teacher" placeholder="예: 김수학"></div>
+    <div class="field"><label>교사용 키</label><input id="teacherKey" type="password" placeholder="관리자에게 받은 키"></div>
+    <div class="small">이 값은 이 브라우저에만 저장됩니다.</div>
+  </details>
+
+  <div class="card">
+    <b>최근 호출</b>
+    <div id="recent" class="recent"><div class="small" style="margin-top:8px">호출 후 최근 기록이 표시됩니다.</div></div>
+  </div>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+const classNo=$('classNo'); for(let i=1;i<=10;i++){const o=document.createElement('option');o.value=o.textContent=i;classNo.appendChild(o)}
+const locs=['교무실','행정실','상담실','보건실','기타']; let selectedLocation='교무실';
+function renderLocations(){const box=$('locations');box.innerHTML='';locs.forEach(x=>{const b=document.createElement('button');b.type='button';b.className='chip '+(selectedLocation===x?'active':'');b.textContent=x;b.onclick=()=>{selectedLocation=x;$('customLocation').style.display=x==='기타'?'block':'none';renderLocations()};box.appendChild(b)})}renderLocations();
+['teacher','teacherKey','grade','classNo'].forEach(id=>{const el=$(id);const saved=localStorage.getItem('studentcall_'+id);if(saved)el.value=saved;el.addEventListener('change',()=>localStorage.setItem('studentcall_'+id,el.value))});
+function setStatus(text,type){const s=$('status');s.className='status '+type;s.textContent=text}
+async function callStudent(){
+ const teacher=$('teacher').value.trim(), student=$('student').value.trim(), key=$('teacherKey').value;
+ const location=selectedLocation==='기타'?$('customLocation').value.trim():selectedLocation;
+ if(!teacher||!student||!location||!key){setStatus('선생님 이름, 학생 이름, 위치, 교사용 키를 확인해 주세요.','err');return}
+ const btn=$('callBtn');btn.disabled=true;
+ try{
+  const r=await fetch('/api/call',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({teacherKey:key,classId:`${$('grade').value}-${$('classNo').value}`,teacher,student,location})});
+  const j=await r.json(); if(!r.ok)throw new Error(j.error||'호출 실패');
+  setStatus(j.delivered>0?`호출 전송 완료 · 전자칠판 ${j.delivered}대 수신`:'호출은 저장됐지만 현재 연결된 대상 전자칠판이 없습니다.','ok');
+  $('student').value='';$('student').focus(); loadRecent();
+ }catch(e){setStatus(e.message,'err')}finally{btn.disabled=false}
+}
+$('callBtn').onclick=callStudent;$('student').addEventListener('keydown',e=>{if(e.key==='Enter')callStudent()});
+async function loadRecent(){const key=$('teacherKey').value;if(!key)return;try{const r=await fetch('/api/recent?teacherKey='+encodeURIComponent(key));if(!r.ok)return;const j=await r.json();$('recent').innerHTML=j.items.length?j.items.map(x=>`<div class="recent-item"><span class="class-badge">${x.classId}</span> · ${escapeHtml(x.student)} → ${escapeHtml(x.location)} <span class="small">(${escapeHtml(x.teacher)})</span></div>`).join(''):'<div class="small">기록 없음</div>'}catch{}}
+function escapeHtml(s){return String(s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
+loadRecent();
+</script>
+</body>
+</html>
