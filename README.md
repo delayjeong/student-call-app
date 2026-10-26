@@ -78,19 +78,28 @@ Actions → `Build Android APK` → Run workflow → 완료 후 Artifacts에서 
 ### 서명 키 등록 (한 번만, 꼭 하세요)
 서명 키를 등록하지 않으면 debug APK가 만들어지는데, **빌드할 때마다 서명이 달라져서** 새 버전을 설치하려면 기존 앱을 지우고 설정을 다시 입력해야 합니다.
 
-1. Java가 설치된 PC에서 키 만들기 (파일과 비밀번호는 안전하게 보관하세요. 잃어버리면 모든 전자칠판에서 앱을 다시 설치해야 합니다):
+1. Java(JDK)가 설치된 PC에서 키 만들기 (파일과 비밀번호는 안전하게 보관하세요. 잃어버리면 모든 전자칠판에서 앱을 다시 설치해야 합니다):
    ```bash
    keytool -genkeypair -v -keystore release.jks -alias studentcall -keyalg RSA -keysize 2048 -validity 10000
-   base64 -w0 release.jks > release.jks.b64     # Windows PowerShell: [Convert]::ToBase64String([IO.File]::ReadAllBytes("release.jks")) > release.jks.b64
    ```
-2. GitHub 저장소 → Settings → Secrets and variables → Actions → New repository secret:
+   비밀번호는 한 번만 묻습니다 (키 비밀번호도 같은 값이 됩니다).
+2. 키 파일을 글자(base64)로 바꿔 복사:
+   ```powershell
+   # Windows PowerShell — 클립보드로 바로 복사 (파일로 저장하면 UTF-16이 되어 빌드가 실패하므로 '>' 사용 금지)
+   [Convert]::ToBase64String([IO.File]::ReadAllBytes("$PWD\release.jks")) | Set-Clipboard
+   ```
+   ```bash
+   # macOS / Linux
+   base64 < release.jks | tr -d '\n'
+   ```
+3. GitHub 저장소 → Settings → Secrets and variables → Actions → New repository secret:
    | 이름 | 값 |
    |---|---|
-   | `SIGNING_KEYSTORE_BASE64` | `release.jks.b64` 파일 내용 |
-   | `SIGNING_STORE_PASSWORD` | 키스토어 비밀번호 |
+   | `SIGNING_KEYSTORE_BASE64` | 2단계에서 복사한 글자 전체 |
+   | `SIGNING_STORE_PASSWORD` | 키를 만들 때 정한 비밀번호 |
    | `SIGNING_KEY_ALIAS` | `studentcall` |
-   | `SIGNING_KEY_PASSWORD` | 키 비밀번호 |
-3. 이후 빌드부터 같은 키로 서명된 release APK가 만들어집니다. 버전 코드는 Actions 실행 번호로 자동 증가합니다.
+   | `SIGNING_KEY_PASSWORD` | 위와 같은 비밀번호 |
+4. 이후 빌드부터 같은 키로 서명된 release APK가 만들어집니다. 버전 코드는 Actions 실행 번호로 자동 증가합니다.
 
 `release.jks`는 절대 저장소에 커밋하지 마세요 (`.gitignore`에 포함되어 있음).
 
