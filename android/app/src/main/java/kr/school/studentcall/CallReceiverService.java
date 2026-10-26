@@ -28,8 +28,9 @@ public class CallReceiverService extends Service {
     public static final String ACTION_START="kr.school.studentcall.START";
     public static final String ACTION_TEST="kr.school.studentcall.TEST";
     private static final int NOTIFY_ID=1505;
-    private static final int SHOW_SECONDS=15;
     private static final String CHANNEL="student_call_receiver";
+    /** '다른 앱 위에 표시' 권한이 없을 때 호출을 보여 주는 중요 알림 채널 (소리는 앱이 직접 낸다) */
+    private static final String ALERT_CHANNEL="student_call_alert";
     private volatile boolean running=false;
     private volatile HttpURLConnection current;
     private final ExecutorService io=Executors.newSingleThreadExecutor();
@@ -38,7 +39,7 @@ public class CallReceiverService extends Service {
     private String lastNotice="";
     private final Handler main=new Handler(Looper.getMainLooper());
     private final ArrayDeque<Call> queue=new ArrayDeque<>();
-    private WindowManager wm; private View overlay; private Call showingCall; private TextView countdown; private int remaining;
+    private WindowManager wm; private View overlay; private Call showingCall; private CallCard card; private int remaining;
     private final Runnable tick=this::onTick;
 
     @Override public void onCreate(){super.onCreate();createChannel();wm=(WindowManager)getSystemService(WINDOW_SERVICE);}
@@ -56,7 +57,13 @@ public class CallReceiverService extends Service {
 
     private void startAsForeground(){Notification n=notification("학생 호출 수신 중", Prefs.classId(this)+" 호출만 수신합니다."); if(Build.VERSION.SDK_INT>=34) startForeground(NOTIFY_ID,n, ServiceInfo.FOREGROUND_SERVICE_TYPE_REMOTE_MESSAGING); else startForeground(NOTIFY_ID,n);}
     private Notification notification(String title,String text){Intent open=new Intent(this,MainActivity.class);PendingIntent pi=PendingIntent.getActivity(this,0,open,PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT);return new Notification.Builder(this,CHANNEL).setSmallIcon(android.R.drawable.ic_dialog_info).setContentTitle(title).setContentText(text).setOngoing(true).setContentIntent(pi).build();}
-    private void createChannel(){NotificationChannel c=new NotificationChannel(CHANNEL,"학생 호출 수신",NotificationManager.IMPORTANCE_LOW);c.setDescription("전자칠판 학생 호출 수신 상태");getSystemService(NotificationManager.class).createNotificationChannel(c);}
+    private void createChannel(){
+        NotificationManager nm=getSystemService(NotificationManager.class);
+        NotificationChannel c=new NotificationChannel(CHANNEL,"학생 호출 수신 상태",NotificationManager.IMPORTANCE_LOW);c.setDescription("전자칠판 학생 호출 수신 상태");nm.createNotificationChannel(c);
+        NotificationChannel a=new NotificationChannel(ALERT_CHANNEL,"학생 호출",NotificationManager.IMPORTANCE_HIGH);
+        a.setDescription("'다른 앱 위에 표시' 권한이 없을 때 호출을 알림으로 표시");a.setSound(null,null);a.enableVibration(false);a.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+        nm.createNotificationChannel(a);
+    }
 
     /**
      * Apps Script 웹앱에 주기적으로 새 호출을 묻는다.
@@ -126,45 +133,74 @@ public class CallReceiverService extends Service {
     private void notice(String text){if(text.equals(lastNotice))return;lastNotice=text;updateNotification(text);}
     private void updateNotification(String text){try{((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).notify(NOTIFY_ID,notification("학생 호출 수신기",text));}catch(Exception ignored){}}
 
-    static String directionParticle(String location){if(location==null||location.isEmpty())return "로";char c=location.charAt(location.length()-1);if(c>=0xAC00&&c<=0xD7A3){int jong=(c-0xAC00)%28;return (jong==0||jong==8)?"로":"으로";}return "로";}
-
-    private void enqueue(Call c){main.post(()->{queue.add(c);if(showingCall==null)showNext();});}
+    /**
+     * 호출 표시. '다른 앱 위에 표시' 권한이 있으면 수업 화면 위 가운데 팝업(순서대로 한 건씩),
+     * 없으면 중요 알림 + 전체 화면 알림으로 바로 보여 준다.
+     */
+    private void enqueue(Call c){main.post(()->{
+        if(!Settings.canDrawOverlays(this)){notifyCall(c);return;}
+        queue.add(c);if(showingCall==null)showNext();
+    });}
     private void cancel(String id){main.post(()->{
         for(Iterator<Call> it=queue.iterator();it.hasNext();)if(id.equals(it.next().id))it.remove();
         if(showingCall!=null&&id.equals(showingCall.id))dismiss();
+        getSystemService(NotificationManager.class).cancel(notifyId(id));
     });}
+
+    private static int notifyId(String callId){
+        if(callId==null)return 1999; // 테스트
+        try{return 2000+(int)(Long.parseLong(callId)%100000);}catch(NumberFormatException e){return 2000+(callId.hashCode()&0xffff);}
+    }
+
+    /** 오버레이 권한이 없을 때: 화면 위쪽 중요 알림. 화면이 꺼져 있거나 잠겨 있으면 전체 화면 호출(CallActivity)이 뜬다. */
+    private void notifyCall(Call c){
+        int id=notifyId(c.id);
+        Intent i=new Intent(this,CallActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                .putExtra(CallActivity.EXTRA_TEACHER,c.teacher).putExtra(CallActivity.EXTRA_STUDENT,c.student)
+                .putExtra(CallActivity.EXTRA_LOCATION,c.location).putExtra(CallActivity.EXTRA_NOTIFY_ID,id);
+        PendingIntent pi=PendingIntent.getActivity(this,id,i,PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT);
+        String body=c.teacher+" 선생님 호출 · "+c.location+CallCard.directionParticle(c.location)+" 오세요";
+        Notification n=new Notification.Builder(this,ALERT_CHANNEL)
+                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setContentTitle("🔔 "+c.student+" 학생 호출").setContentText(body)
+                .setStyle(new Notification.BigTextStyle().bigText(body))
+                .setCategory(Notification.CATEGORY_ALARM).setVisibility(Notification.VISIBILITY_PUBLIC)
+                .setContentIntent(pi).setFullScreenIntent(pi,true)
+                .setAutoCancel(true).setTimeoutAfter(5*60_000L)
+                .build();
+        try{getSystemService(NotificationManager.class).notify(id,n);}catch(Exception e){return;}
+        if(Prefs.get(this).getBoolean(Prefs.SOUND,true))beep();
+        if(c.id!=null)synchronized(pendingAcks){pendingAcks.add(c.id);}
+        // 테스트 호출만 띄우려고 서비스를 잠깐 켠 경우
+        if(!running)stopSelf();
+    }
 
     private void showNext(){
         removeOverlay();showingCall=null;
         // 수신을 켜지 않은 상태에서 테스트 팝업만 띄웠다면 표시가 끝난 뒤 서비스 종료
         if(queue.isEmpty()){if(!running)stopSelf();return;}
-        if(!Settings.canDrawOverlays(this)){updateNotification("'다른 앱 위에 표시' 권한이 꺼져 있어 호출을 표시하지 못했습니다.");queue.clear();return;}
+        // 표시 도중 권한이 꺼졌다면 남은 호출은 알림으로
+        if(!Settings.canDrawOverlays(this)){while(!queue.isEmpty())notifyCall(queue.poll());return;}
         Call c=queue.poll();
-        LinearLayout box=new LinearLayout(this);box.setOrientation(LinearLayout.VERTICAL);box.setGravity(Gravity.CENTER);box.setPadding(60,44,60,36);GradientDrawable bg=new GradientDrawable();bg.setColor(Color.argb(248,255,255,255));bg.setCornerRadius(28);bg.setStroke(3,Color.rgb(29,78,216));box.setBackground(bg);
-        box.addView(tv("🔔  학생 호출",30,true,Color.rgb(29,78,216)));addGap(box,18);
-        box.addView(tv(c.teacher+" 선생님 호출",34,true,Color.rgb(30,41,59)));addGap(box,14);
-        box.addView(tv(c.student+" 학생",48,true,Color.rgb(15,23,42)));addGap(box,12);
-        box.addView(tv(c.location+directionParticle(c.location)+" 오세요",36,true,Color.rgb(185,28,28)));addGap(box,16);
-        Button ok=new Button(this);ok.setText("확인");ok.setTextSize(22);ok.setTextColor(Color.WHITE);ok.setAllCaps(false);GradientDrawable okBg=new GradientDrawable();okBg.setColor(Color.rgb(29,78,216));okBg.setCornerRadius(16);ok.setBackground(okBg);ok.setPadding(80,10,80,10);ok.setOnClickListener(v->dismiss());box.addView(ok,new LinearLayout.LayoutParams(-2,-2));addGap(box,10);
-        remaining=SHOW_SECONDS;countdown=tv("",18,false,Color.GRAY);box.addView(countdown);updateCountdown();
+        card=new CallCard(this,c.teacher,c.student,c.location,this::dismiss);
+        View box=card.root;
+        remaining=CallCard.SHOW_SECONDS;updateCountdown();
         WindowManager.LayoutParams lp=new WindowManager.LayoutParams((int)(getResources().getDisplayMetrics().widthPixels*0.72),WindowManager.LayoutParams.WRAP_CONTENT,WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE|WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL|WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,PixelFormat.TRANSLUCENT);lp.gravity=Gravity.CENTER;
-        try{wm.addView(box,lp);}catch(Exception e){showNext();return;}
+        try{wm.addView(box,lp);}catch(Exception e){card=null;notifyCall(c);showNext();return;}
         overlay=box;showingCall=c;
         if(Prefs.get(this).getBoolean(Prefs.SOUND,true))beep();
         if(c.id!=null)synchronized(pendingAcks){pendingAcks.add(c.id);}
         main.postDelayed(tick,1000);
     }
     private void onTick(){if(showingCall==null)return;remaining--;if(remaining<=0){dismiss();return;}updateCountdown();main.postDelayed(tick,1000);}
-    private void updateCountdown(){if(countdown!=null)countdown.setText(remaining+"초 후 자동으로 닫힙니다.");}
+    private void updateCountdown(){if(card!=null)card.setRemaining(remaining);}
     private void dismiss(){main.removeCallbacks(tick);showNext();}
 
     private void beep(){
         try{ToneGenerator tone=new ToneGenerator(AudioManager.STREAM_NOTIFICATION,80);tone.startTone(ToneGenerator.TONE_PROP_BEEP2,500);main.postDelayed(tone::release,800);}catch(Exception ignored){}
     }
 
-    private TextView tv(String s,int sp,boolean bold,int color){TextView t=new TextView(this);t.setText(s);t.setTextSize(sp);t.setTextColor(color);t.setGravity(Gravity.CENTER);if(bold)t.setTypeface(Typeface.DEFAULT,Typeface.BOLD);return t;}
-    private void addGap(LinearLayout p,int dp){Space x=new Space(this);p.addView(x,new LinearLayout.LayoutParams(1,(int)(dp*getResources().getDisplayMetrics().density)));}
-    private void removeOverlay(){if(overlay!=null){try{wm.removeView(overlay);}catch(Exception ignored){}overlay=null;countdown=null;}}
+    private void removeOverlay(){if(overlay!=null){try{wm.removeView(overlay);}catch(Exception ignored){}overlay=null;card=null;}}
     private void sleep(long ms){try{Thread.sleep(ms);}catch(InterruptedException ignored){Thread.currentThread().interrupt();}}
 
     @Override public void onDestroy(){

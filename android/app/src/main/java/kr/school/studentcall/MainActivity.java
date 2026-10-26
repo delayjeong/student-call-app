@@ -54,7 +54,7 @@ public class MainActivity extends Activity {
         sound = check(card,"호출음 사용");
 
         Button save = button("설정 저장", Color.rgb(71,85,105)); card.addView(save); save.setOnClickListener(v -> { if(save()) toast("설정을 저장했습니다."); updateStatus(); });
-        Button overlay = button("1. 다른 앱 위에 표시 권한 허용", Color.rgb(2,132,199)); card.addView(overlay); overlay.setOnClickListener(v -> requestOverlay());
+        Button overlay = button("1. 다른 앱 위에 표시 권한 허용 (권장)", Color.rgb(2,132,199)); card.addView(overlay); overlay.setOnClickListener(v -> requestOverlay());
         Button battery = button("2. 배터리 최적화 제외 (꺼짐 방지)", Color.rgb(2,132,199)); card.addView(battery); battery.setOnClickListener(v -> requestBatteryExemption());
         Button start = button("3. 호출 수신 시작", Color.rgb(29,78,216)); card.addView(start); start.setOnClickListener(v -> startReceiver());
         Button stop = button("호출 수신 중지", Color.rgb(185,28,28)); card.addView(stop); stop.setOnClickListener(v -> stopReceiver());
@@ -126,23 +126,29 @@ public class MainActivity extends Activity {
     private void startReceiver(){
         if(!save())return;
         if(prefs.getString(Prefs.SERVER_URL,"").isEmpty()||prefs.getString(Prefs.DEVICE_KEY,"").isEmpty()){toast("웹앱 주소와 수신기 키를 입력해 주세요.");return;}
-        if(!Settings.canDrawOverlays(this)){toast("먼저 '다른 앱 위에 표시' 권한을 허용해 주세요.");requestOverlay();return;}
-        if(Build.VERSION.SDK_INT>=33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED){requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},100);}
+        requestNotificationPermission();
         prefs.edit().putBoolean(Prefs.ENABLED,true).apply();
         startService();
-        toast("호출 수신을 시작했습니다.");updateStatus();
+        // 오버레이 권한이 없어도 수신은 시작한다 (호출은 화면 위쪽 알림으로 표시)
+        toast(Settings.canDrawOverlays(this)?"호출 수신을 시작했습니다.":"호출 수신을 시작했습니다. '다른 앱 위에 표시' 권한이 없어 호출은 화면 위쪽 알림으로 표시됩니다.");
+        updateStatus();
     }
     private void startService(){Intent i=new Intent(this,CallReceiverService.class);i.setAction(CallReceiverService.ACTION_START);startForegroundService(i);}
     private void stopReceiver(){prefs.edit().putBoolean(Prefs.ENABLED,false).apply();stopService(new Intent(this,CallReceiverService.class));toast("호출 수신을 중지했습니다.");updateStatus();}
+    private void requestNotificationPermission(){
+        if(Build.VERSION.SDK_INT>=33 && checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS},100);
+    }
     private void testPopup(){
-        if(!Settings.canDrawOverlays(this)){toast("먼저 '다른 앱 위에 표시' 권한을 허용해 주세요.");requestOverlay();return;}
+        if(!Settings.canDrawOverlays(this)){requestNotificationPermission();toast("'다른 앱 위에 표시' 권한이 없어 화면 위쪽 알림으로 시험합니다.");}
         save();Intent i=new Intent(this,CallReceiverService.class);i.setAction(CallReceiverService.ACTION_TEST);startService(i);
     }
     private void updateStatus(){
         boolean overlay=Settings.canDrawOverlays(this);boolean on=prefs.getBoolean(Prefs.ENABLED,false);
+        boolean notify=getSystemService(android.app.NotificationManager.class).areNotificationsEnabled();
+        String mode=overlay?"수업 화면 위 가운데 팝업":(notify?"화면 위쪽 알림 (오버레이 권한 없음)":"표시 불가 — 알림 권한을 허용해 주세요");
         String hours=prefs.getString(Prefs.ACTIVE_START,ActiveHours.DEFAULT_START)+"~"+prefs.getString(Prefs.ACTIVE_END,ActiveHours.DEFAULT_END);
-        status.setText("등록 반: "+Prefs.classId(this)+"   ·   수신: "+(on?"켜짐":"꺼짐")+"   ·   오버레이 권한: "+(overlay?"허용":"미허용")+"   ·   운영 시간: "+hours+"\n호출 수신 시작 후 상단 알림에 '연결됨 · 10초마다 확인'이 표시되면 정상입니다.");
-        status.setBackground(round(overlay&&on?Color.rgb(236,253,245):Color.rgb(255,247,237),14));
+        status.setText("등록 반: "+Prefs.classId(this)+"   ·   수신: "+(on?"켜짐":"꺼짐")+"   ·   운영 시간: "+hours+"\n호출 표시 방식: "+mode+"\n호출 수신 시작 후 상단 알림에 '연결됨 · 10초마다 확인'이 표시되면 정상입니다.");
+        status.setBackground(round(on&&overlay?Color.rgb(236,253,245):on&&notify?Color.rgb(254,249,195):Color.rgb(255,247,237),14));
     }
     private void toast(String s){Toast.makeText(this,s,Toast.LENGTH_LONG).show();}
     @Override protected void onResume(){super.onResume();if(status!=null)updateStatus();}
