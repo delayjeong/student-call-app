@@ -22,7 +22,7 @@ final class CallCard {
         root.addView(tv(ctx,"🔔  학생 호출",30,true,Color.rgb(29,78,216)));gap(ctx,18);
         root.addView(tv(ctx,teacher+" 선생님 호출",34,true,Color.rgb(30,41,59)));gap(ctx,14);
         root.addView(tv(ctx,student+" 학생",48,true,Color.rgb(15,23,42)));gap(ctx,12);
-        root.addView(tv(ctx,location+directionParticle(location)+" 오세요",36,true,Color.rgb(185,28,28)));gap(ctx,16);
+        root.addView(tv(ctx,location+Korean.directionParticle(location)+" 오세요",36,true,Color.rgb(185,28,28)));gap(ctx,16);
         Button ok=new Button(ctx);ok.setText("확인");ok.setTextSize(22);ok.setTextColor(Color.WHITE);ok.setAllCaps(false);
         GradientDrawable okBg=new GradientDrawable();okBg.setColor(Color.rgb(29,78,216));okBg.setCornerRadius(16);ok.setBackground(okBg);ok.setPadding(80,10,80,10);
         ok.setOnClickListener(v->onOk.run());root.addView(ok,new LinearLayout.LayoutParams(-2,-2));gap(ctx,10);
@@ -30,9 +30,6 @@ final class CallCard {
     }
 
     void setRemaining(int seconds){countdown.setText(seconds+"초 후 자동으로 닫힙니다.");}
-
-    /** "교무실로", "상담실로", "보건실로", "도서관으로" — 받침(ㄹ 제외)이 있으면 '으로' */
-    static String directionParticle(String location){if(location==null||location.isEmpty())return "로";char c=location.charAt(location.length()-1);if(c>=0xAC00&&c<=0xD7A3){int jong=(c-0xAC00)%28;return (jong==0||jong==8)?"로":"으로";}return "로";}
 
     private static TextView tv(Context ctx,String s,int sp,boolean bold,int color){TextView t=new TextView(ctx);t.setText(s);t.setTextSize(sp);t.setTextColor(color);t.setGravity(Gravity.CENTER);if(bold)t.setTypeface(Typeface.DEFAULT,Typeface.BOLD);return t;}
     private void gap(Context ctx,int dp){Space x=new Space(ctx);root.addView(x,new LinearLayout.LayoutParams(1,(int)(dp*ctx.getResources().getDisplayMetrics().density)));}

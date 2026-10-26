@@ -10,6 +10,13 @@
     <!-- 오버레이 권한이 없을 때 화면이 꺼져 있거나 잠겨 있으면 호출 화면을 전체로 띄우기 위함 -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
 
+    <!-- Android 11+: 기기의 음성 엔진(TTS)을 찾으려면 선언해야 한다 -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+    </queries>
+
     <application
         android:allowBackup="false"
         android:label="@string/app_name"

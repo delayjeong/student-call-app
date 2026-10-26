@@ -19,7 +19,7 @@ import android.graphics.drawable.GradientDrawable;
 public class MainActivity extends Activity {
     private EditText serverUrl, deviceKey;
     private Spinner grade, classNo;
-    private CheckBox autoStart, sound;
+    private CheckBox autoStart, sound, voice, voiceHideName;
     private TextView status;
     private SharedPreferences prefs;
 
@@ -52,6 +52,8 @@ public class MainActivity extends Activity {
         deviceKey = input(card,"수신기 키","관리자에게 받은 DEVICE_KEY");
         autoStart = check(card,"전자칠판을 켜면 자동으로 호출 수신 시작");
         sound = check(card,"호출음 사용");
+        voice = check(card,"음성 안내 (\"김민수 학생, 교무실로 오세요\"를 2번 읽기)");
+        voiceHideName = check(card,"음성 안내에서 학생 이름 읽지 않기 (\"학생 호출이 있습니다\")");
 
         Button save = button("설정 저장", Color.rgb(71,85,105)); card.addView(save); save.setOnClickListener(v -> { if(save()) toast("설정을 저장했습니다."); updateStatus(); });
         Button overlay = button("1. 다른 앱 위에 표시 권한 허용 (권장)", Color.rgb(2,132,199)); card.addView(overlay); overlay.setOnClickListener(v -> requestOverlay());
@@ -91,6 +93,8 @@ public class MainActivity extends Activity {
         deviceKey.setText(prefs.getString(Prefs.DEVICE_KEY,""));
         autoStart.setChecked(prefs.getBoolean(Prefs.AUTO_START,true));
         sound.setChecked(prefs.getBoolean(Prefs.SOUND,true));
+        voice.setChecked(prefs.getBoolean(Prefs.VOICE,true));
+        voiceHideName.setChecked(prefs.getBoolean(Prefs.VOICE_HIDE_NAME,false));
     }
     private boolean save(){
         String url=serverUrl.getText().toString().trim();
@@ -101,7 +105,7 @@ public class MainActivity extends Activity {
                 .putString(Prefs.GRADE,String.valueOf(grade.getSelectedItemPosition()+1))
                 .putString(Prefs.CLASS_NO,String.valueOf(classNo.getSelectedItemPosition()+1))
                 .putString(Prefs.DEVICE_KEY,deviceKey.getText().toString().trim())
-                .putBoolean(Prefs.AUTO_START,autoStart.isChecked()).putBoolean(Prefs.SOUND,sound.isChecked()).apply();
+                .putBoolean(Prefs.AUTO_START,autoStart.isChecked()).putBoolean(Prefs.SOUND,sound.isChecked()).putBoolean(Prefs.VOICE,voice.isChecked()).putBoolean(Prefs.VOICE_HIDE_NAME,voiceHideName.isChecked()).apply();
         // 수신 중에 반이나 서버를 바꾸면 새 설정으로 다시 연결
         if(prefs.getBoolean(Prefs.ENABLED,false)&&!before.equals(connectionSettings())){stopService(new Intent(this,CallReceiverService.class));startService();}
         return true;
@@ -147,7 +151,7 @@ public class MainActivity extends Activity {
         boolean notify=getSystemService(android.app.NotificationManager.class).areNotificationsEnabled();
         String mode=overlay?"수업 화면 위 가운데 팝업":(notify?"화면 위쪽 알림 (오버레이 권한 없음)":"표시 불가 — 알림 권한을 허용해 주세요");
         String hours=prefs.getString(Prefs.ACTIVE_START,ActiveHours.DEFAULT_START)+"~"+prefs.getString(Prefs.ACTIVE_END,ActiveHours.DEFAULT_END);
-        status.setText("등록 반: "+Prefs.classId(this)+"   ·   수신: "+(on?"켜짐":"꺼짐")+"   ·   운영 시간: "+hours+"\n호출 표시 방식: "+mode+"\n호출 수신 시작 후 상단 알림에 '연결됨 · 10초마다 확인'이 표시되면 정상입니다.");
+        status.setText("등록 반: "+Prefs.classId(this)+"   ·   수신: "+(on?"켜짐":"꺼짐")+"   ·   운영 시간: "+hours+"\n호출 표시 방식: "+mode+"   ·   음성 안내: "+(prefs.getBoolean(Prefs.VOICE,true)?prefs.getString(Prefs.TTS_STATUS,"확인 전 (테스트 팝업을 눌러 보세요)"):"꺼짐")+"\n호출 수신 시작 후 상단 알림에 '연결됨 · 10초마다 확인'이 표시되면 정상입니다.");
         status.setBackground(round(on&&overlay?Color.rgb(236,253,245):on&&notify?Color.rgb(254,249,195):Color.rgb(255,247,237),14));
     }
     private void toast(String s){Toast.makeText(this,s,Toast.LENGTH_LONG).show();}

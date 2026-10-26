@@ -14,7 +14,7 @@ android {
         targetSdk 35
         // CI 실행 번호를 버전 코드로 써서 새 빌드가 항상 이전 빌드보다 높도록 한다
         versionCode((System.getenv('GITHUB_RUN_NUMBER') ?: '2') as int)
-        versionName '0.4.0'
+        versionName '0.5.0'
     }
 
     signingConfigs {

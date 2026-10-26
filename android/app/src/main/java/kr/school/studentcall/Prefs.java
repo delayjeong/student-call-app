@@ -9,6 +9,8 @@ import java.util.UUID;
 final class Prefs {
     static final String SERVER_URL="serverUrl", GRADE="grade", CLASS_NO="classNo", DEVICE_KEY="deviceKey", DEVICE_ID="deviceId";
     static final String ENABLED="enabled", AUTO_START="autoStart", SOUND="sound";
+    /** 음성 안내 켜기 / 학생 이름 읽지 않기 / 음성 엔진 상태(서비스가 기록, 설정 화면에 표시) */
+    static final String VOICE="voice", VOICE_HIDE_NAME="voiceHideName", TTS_STATUS="ttsStatus";
     /** 서버(Apps Script)가 확인 응답으로 알려 주는 운영 시간. 다음 날 시작 시각 계산에 쓴다. */
     static final String ACTIVE_START="activeStart", ACTIVE_END="activeEnd";
     /** 예전(PC 서버) 설정을 지웠음을 화면에 한 번 알리기 위한 표시 */

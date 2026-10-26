@@ -37,12 +37,13 @@ public class CallReceiverService extends Service {
     /** 팝업을 표시한 호출 번호. 다음 확인 요청에 실어 보내고 성공하면 지운다. */
     private final Set<String> pendingAcks=new LinkedHashSet<>();
     private String lastNotice="";
+    private Speaker speaker;
     private final Handler main=new Handler(Looper.getMainLooper());
     private final ArrayDeque<Call> queue=new ArrayDeque<>();
     private WindowManager wm; private View overlay; private Call showingCall; private CallCard card; private int remaining;
     private final Runnable tick=this::onTick;
 
-    @Override public void onCreate(){super.onCreate();createChannel();wm=(WindowManager)getSystemService(WINDOW_SERVICE);}
+    @Override public void onCreate(){super.onCreate();createChannel();wm=(WindowManager)getSystemService(WINDOW_SERVICE);speaker=new Speaker(this);}
 
     @Override public int onStartCommand(Intent intent,int flags,int startId){
         if(intent!=null && ACTION_TEST.equals(intent.getAction())) {
@@ -145,7 +146,15 @@ public class CallReceiverService extends Service {
         for(Iterator<Call> it=queue.iterator();it.hasNext();)if(id.equals(it.next().id))it.remove();
         if(showingCall!=null&&id.equals(showingCall.id))dismiss();
         getSystemService(NotificationManager.class).cancel(notifyId(id));
+        if(speaker!=null)speaker.cancel(id);
     });}
+
+    /** 음성 안내 (설정에서 켠 경우). TTS 엔진이 없으면 Speaker가 조용히 무시한다. */
+    private void announce(Call c){
+        SharedPreferences p=Prefs.get(this);
+        if(speaker==null||!p.getBoolean(Prefs.VOICE,true))return;
+        speaker.say(c.id,Korean.spoken(c.teacher,c.student,c.location,p.getBoolean(Prefs.VOICE_HIDE_NAME,false)));
+    }
 
     private static int notifyId(String callId){
         if(callId==null)return 1999; // 테스트
@@ -159,7 +168,7 @@ public class CallReceiverService extends Service {
                 .putExtra(CallActivity.EXTRA_TEACHER,c.teacher).putExtra(CallActivity.EXTRA_STUDENT,c.student)
                 .putExtra(CallActivity.EXTRA_LOCATION,c.location).putExtra(CallActivity.EXTRA_NOTIFY_ID,id);
         PendingIntent pi=PendingIntent.getActivity(this,id,i,PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT);
-        String body=c.teacher+" 선생님 호출 · "+c.location+CallCard.directionParticle(c.location)+" 오세요";
+        String body=c.teacher+" 선생님 호출 · "+c.location+Korean.directionParticle(c.location)+" 오세요";
         Notification n=new Notification.Builder(this,ALERT_CHANNEL)
                 .setSmallIcon(android.R.drawable.ic_dialog_info)
                 .setContentTitle("🔔 "+c.student+" 학생 호출").setContentText(body)
@@ -170,9 +179,10 @@ public class CallReceiverService extends Service {
                 .build();
         try{getSystemService(NotificationManager.class).notify(id,n);}catch(Exception e){return;}
         if(Prefs.get(this).getBoolean(Prefs.SOUND,true))beep();
+        announce(c);
         if(c.id!=null)synchronized(pendingAcks){pendingAcks.add(c.id);}
-        // 테스트 호출만 띄우려고 서비스를 잠깐 켠 경우
-        if(!running)stopSelf();
+        // 테스트 호출만 띄우려고 서비스를 잠깐 켠 경우: 음성 안내가 끝날 때쯤 종료
+        if(!running)main.postDelayed(()->{if(!running&&showingCall==null)stopSelf();},25_000);
     }
 
     private void showNext(){
@@ -189,6 +199,7 @@ public class CallReceiverService extends Service {
         try{wm.addView(box,lp);}catch(Exception e){card=null;notifyCall(c);showNext();return;}
         overlay=box;showingCall=c;
         if(Prefs.get(this).getBoolean(Prefs.SOUND,true))beep();
+        announce(c);
         if(c.id!=null)synchronized(pendingAcks){pendingAcks.add(c.id);}
         main.postDelayed(tick,1000);
     }
@@ -208,6 +219,7 @@ public class CallReceiverService extends Service {
         // 진행 중인 요청을 즉시 끊는다 (disconnect는 네트워크 작업이라 메인 스레드 밖에서)
         HttpURLConnection c=current;if(c!=null)new Thread(c::disconnect).start();
         main.removeCallbacks(tick);queue.clear();removeOverlay();showingCall=null;
+        if(speaker!=null){speaker.shutdown();speaker=null;}
         io.shutdownNow();super.onDestroy();
     }
     @Override public IBinder onBind(Intent intent){return null;}
