@@ -31,15 +31,12 @@ assert.deepStrictEqual(plain(c1),{id:1,onlineDevices:1});
 r=poll({key:D,classId:'1-5',deviceId:'board-15',after:'0'});assert.strictEqual(r.calls[0].student,'김민수');
 assert.strictEqual(poll({key:D,classId:'1-4',deviceId:'board-14',after:'0'}).calls.length,0);
 poll({key:D,classId:'1-5',deviceId:'board-15',after:'1',acked:'1'});assert.strictEqual(sheet.rows[1][7],1);
-
 const c2=gas.callStudent(T,{target:'1-5',teacher:'김수학',student:'박서연',location:'상담실'});gas.cancelCall(T,c2.id);
 r=poll({key:D,classId:'1-5',deviceId:'board-15',after:'1'});assert.deepStrictEqual([r.calls.length,r.cancelled],[0,[2]]);
 
-// 구버전 config 캐시가 남아 있어도 자동 복구
 state.cache.set('config',JSON.stringify({pollSeconds:10,activeStart:'08:00',activeEnd:'22:00',teacherKey:T,deviceKey:D}));
 assert.deepStrictEqual(plain(gas.getConfig().classCounts),[5,5,4]);
 
-// 학년 전체 학생 호출
 state.cache.clear();gas.clearCaches();
 let baseline=poll({key:D,classId:'2-1',deviceId:'board-21'}).lastId;
 poll({key:D,classId:'2-2',deviceId:'board-22'});poll({key:D,classId:'1-1',deviceId:'board-11'});
@@ -47,12 +44,9 @@ const cg=gas.callStudent(T,{target:'2-*',teacher:'정연기',student:'홍길동'
 assert.strictEqual(cg.onlineDevices,2);
 for(const [cid,did] of [['2-1','board-21'],['2-2','board-22']]){r=poll({key:D,classId:cid,deviceId:did,after:String(baseline)});assert.deepStrictEqual([r.calls[0].classId,r.calls[0].type,r.calls[0].student],['2-*','call','홍길동']);}
 assert.strictEqual(poll({key:D,classId:'1-1',deviceId:'board-11',after:String(baseline)}).calls.length,0);
-
-// 학년 전체 전달
 baseline=cg.id;const ng=gas.sendNotice(T,{target:'2-*',teacher:'정연기',message:'전달 테스트'});assert.strictEqual(ng.onlineDevices,2);
 r=poll({key:D,classId:'2-1',deviceId:'board-21',after:String(baseline)});assert.deepStrictEqual([r.calls[0].type,r.calls[0].message],['notice','전달 테스트']);
 
-// 예약 생성 → 수정 → 취소
 state.now=kst(10,0);state.cache.clear();gas.clearCaches();
 let s=gas.createSchedule(T,{type:'notice',target:'1-1',teacher:'정연기',message:'예약 전달',scheduleAt:localAt(10,5)});
 assert.strictEqual(gas.getSchedules(T).length,1);
@@ -60,23 +54,15 @@ gas.updateSchedule(T,s.id,{type:'notice',target:'1-*',teacher:'정연기',messag
 assert.deepStrictEqual([gas.getSchedules(T)[0].target,gas.getSchedules(T)[0].message],['1-*','수정된 예약']);
 gas.cancelSchedule(T,s.id);assert.strictEqual(gas.getSchedules(T).length,0);
 
-// 예약된 학년 전체 호출이 시간이 되면 실제 호출로 전송
-baseline=poll({key:D,classId:'3-1',deviceId:'board-31'}).lastId;
-poll({key:D,classId:'3-2',deviceId:'board-32'});
+baseline=poll({key:D,classId:'3-1',deviceId:'board-31'}).lastId;poll({key:D,classId:'3-2',deviceId:'board-32'});
 s=gas.createSchedule(T,{type:'call',target:'3-*',teacher:'정연기',student:'김학생',location:'수학실',scheduleAt:localAt(10,5)});
-assert.strictEqual(gas.getSchedules(T).length,1);
-state.now=kst(10,6);gas.processScheduledItems();assert.strictEqual(gas.getSchedules(T).length,0);
+assert.strictEqual(gas.getSchedules(T).length,1);state.now=kst(10,6);gas.processScheduledItems();assert.strictEqual(gas.getSchedules(T).length,0);
 for(const [cid,did] of [['3-1','board-31'],['3-2','board-32']]){r=poll({key:D,classId:cid,deviceId:did,after:String(baseline)});assert.strictEqual(r.calls.some(x=>x.type==='call'&&x.student==='김학생'&&x.classId==='3-*'),true);}
 assert.strictEqual(scheduleSheet.rows.find(x=>x[0]===s.id)[8],'전송완료');
 
-// 예약 시간 검증
-state.now=kst(10,0);assert.throws(()=>gas.createSchedule(T,{type:'call',target:'1-1',teacher:'a',student:'b',location:'c',scheduleAt:localAt(7,0)}),/운영 시간/);
+state.now=kst(10,0);assert.throws(()=>gas.createSchedule(T,{type:'call',target:'1-1',teacher:'a',student:'b',location:'c',scheduleAt:localAt(23,0)}),/운영 시간/);
 assert.throws(()=>gas.createSchedule(T,{type:'call',target:'1-1',teacher:'a',student:'b',location:'c',scheduleAt:localAt(9,0)}),/현재보다 이후/);
+const call=()=>gas.callStudent(T,{target:'1-1',teacher:'a',student:'b',location:'c'});state.now=kst(7,59);assert.throws(call,/운영 시간/);state.now=kst(8,0);call();state.now=kst(22,0);assert.throws(call,/운영 시간/);
 
-// 즉시 전송 운영시간
-const call=()=>gas.callStudent(T,{target:'1-1',teacher:'a',student:'b',location:'c'});
-state.now=kst(7,59);assert.throws(call,/운영 시간/);state.now=kst(8,0);call();state.now=kst(22,0);assert.throws(call,/운영 시간/);
-
-// poll은 warm cache에서 PropertiesService를 건드리지 않음
 state.now=kst(10,0);state.cache.clear();gas.clearCaches();poll({key:D,classId:'1-1',deviceId:'board',after:'999'});const before=state.propOps;for(let i=0;i<50;i++)poll({key:D,classId:'1-1',deviceId:'board',after:'999'});assert.strictEqual(state.propOps,before);
 console.log('APPS SCRIPT TEST PASS');
