@@ -1,158 +1,56 @@
 <!doctype html>
-<html lang="ko">
-<head>
-<base target="_top">
-<meta charset="utf-8">
+<html lang="ko"><head><base target="_top"><meta charset="utf-8">
 <style>
-:root{font-family:system-ui,-apple-system,"Noto Sans KR",sans-serif;background:#f3f5f8;color:#18212f}
-*{box-sizing:border-box}body{margin:0;background:#f3f5f8}.wrap{max-width:760px;margin:auto;padding:24px 16px 60px}
-.title{font-size:30px;font-weight:850;margin:8px 0 4px}.sub{color:#64748b;margin-bottom:18px}.card{background:#fff;border-radius:20px;padding:20px;box-shadow:0 8px 28px rgba(15,23,42,.08);margin-bottom:16px}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field{margin:12px 0}.field label{display:block;font-size:14px;font-weight:750;margin-bottom:7px;color:#475569}
-input,select,textarea{width:100%;font-size:18px;border:1px solid #cbd5e1;border-radius:12px;padding:14px;background:#fff;color:#18212f;font-family:inherit}textarea{min-height:126px;resize:vertical;line-height:1.5}
-button{border:0;border-radius:14px;padding:15px;font-size:18px;font-weight:800;cursor:pointer;font-family:inherit}.primary{width:100%;background:#1d4ed8;color:#fff;margin-top:14px}.notice-send{background:#0369a1}.primary:disabled,.notice-send:disabled{opacity:.45;cursor:default}
-.mode{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}.modebtn{background:#eef2f7;color:#475569}.modebtn.active{background:#1e3a8a;color:#fff}.modebtn.notice.active{background:#0369a1}
-.locations{display:flex;flex-wrap:wrap;gap:8px}.chip{background:#e8eefb;color:#1e3a8a;padding:10px 13px;font-size:15px}.chip.active{background:#1d4ed8;color:#fff}
-.status{border-radius:12px;padding:13px;margin-top:14px;display:none}.ok{display:block;background:#ecfdf5;color:#166534}.warn{display:block;background:#fff7ed;color:#9a3412}.err{display:block;background:#fef2f2;color:#991b1b}.small{font-size:13px;color:#64748b}.hint{font-size:14px;color:#64748b;line-height:1.45;margin-top:7px}
-.recent{font-size:14px}.recent-item{padding:11px 0;border-bottom:1px solid #eef2f7;display:flex;align-items:center;gap:8px;flex-wrap:wrap}.recent-item .txt{flex:1;min-width:220px}.class-badge{font-weight:850}.type-badge{display:inline-block;padding:2px 7px;border-radius:7px;font-size:12px;font-weight:800;background:#e8eefb;color:#1e3a8a}.type-badge.notice{background:#e0f2fe;color:#075985}
-.settings summary{cursor:pointer;font-weight:800}.mini{padding:8px 12px;font-size:14px;border-radius:10px;background:#e8eefb;color:#1e3a8a}.mini.cancel{background:#fef2f2;color:#991b1b}.mini:disabled{opacity:.5}.cancelled .txt{text-decoration:line-through;color:#94a3b8}.head{display:flex;justify-content:space-between;align-items:center}.keyrow{display:flex;gap:8px}.keyrow input{flex:1}.keyrow button{flex:0 0 auto;background:#334155;color:white;padding:12px 16px;font-size:15px}.hidden{display:none!important}
-.scopebox{padding:12px 14px;border-radius:12px;background:#f8fafc;border:1px solid #e2e8f0}.scopebox strong{display:block;margin-bottom:5px}.danger-note{color:#9a3412}
-@media(max-width:520px){.grid,.mode{grid-template-columns:1fr}.title{font-size:26px}.keyrow{display:block}.keyrow button{width:100%;margin-top:8px}}
-</style>
-</head>
-<body>
-<div class="wrap">
-  <div class="title">🔔 학생 호출 · 전달</div>
-  <div class="sub">학생 호출 또는 반/학년 전체 전달사항을 보낼 수 있습니다. <span id="hours"></span></div>
-
-  <div class="card">
-    <div class="mode">
-      <button type="button" class="modebtn active" id="modeCall">학생 호출</button>
-      <button type="button" class="modebtn notice" id="modeNotice">전달사항</button>
-    </div>
-
-    <div class="grid">
-      <div class="field"><label for="grade">학년</label><select id="grade"></select></div>
-      <div class="field"><label for="classNo">반</label><select id="classNo"></select></div>
-    </div>
-
-    <div id="callPanel">
-      <div class="field"><label for="student">학생 이름</label><input id="student" autocomplete="off" maxlength="30" placeholder="예: 김민수"></div>
-      <div class="field"><label>호출 위치</label><div class="locations" id="locations"></div><input id="customLocation" maxlength="40" placeholder="직접 입력" style="margin-top:8px;display:none"></div>
-      <div id="devicesCall" class="small"></div>
-      <button class="primary" id="callBtn">학생 호출</button>
-    </div>
-
-    <div id="noticePanel" class="hidden">
-      <div class="field"><label for="noticeScope">전달 대상</label>
-        <select id="noticeScope"><option value="class">선택한 반</option><option value="grade">학년 전체</option></select>
-      </div>
-      <div class="scopebox" id="noticeTargetBox"><strong id="noticeTarget">1학년 1반</strong><span class="small" id="noticeDevices"></span></div>
-      <div class="field"><label for="message">전달사항</label><textarea id="message" maxlength="200" placeholder="예: 5교시 수업 장소가 물리실로 변경되었습니다."></textarea><div class="hint">전자칠판에서 “선생님 전달사항입니다. …” 형식으로 화면 표시와 TTS 안내가 나옵니다. (최대 200자)</div></div>
-      <button class="primary notice-send" id="noticeBtn">선택한 반에 전달</button>
-    </div>
-
-    <div id="status" class="status"></div>
-  </div>
-
-  <details class="card settings" id="settings">
-    <summary>교사 설정</summary>
-    <div class="field"><label for="teacher">선생님 이름</label><input id="teacher" maxlength="30" placeholder="예: 정연기"></div>
-    <div class="field"><label for="teacherKeyInput">교사용 키</label>
-      <div class="keyrow"><input id="teacherKeyInput" type="password" autocomplete="new-password" placeholder="관리자에게 받은 키"><button type="button" id="saveKeyBtn">교사용 키 저장</button></div>
-      <div class="hint" id="keyState">교사용 키가 아직 저장되지 않았습니다.</div>
-      <div class="hint">저장된 키는 이 화면에 다시 표시하지 않습니다. 키를 변경할 때만 새 키를 입력해 덮어쓰세요.</div>
-    </div>
-  </details>
-
-  <div class="card">
-    <div class="head"><b>최근 호출 · 전달</b><button class="mini" id="refreshBtn" type="button">새로고침</button></div>
-    <div id="recent" class="recent"><div class="small" style="margin-top:8px">교사용 키를 저장하면 최근 기록이 표시됩니다.</div></div>
-  </div>
+:root{font-family:system-ui,-apple-system,"Noto Sans KR",sans-serif;background:#f3f5f8;color:#18212f}*{box-sizing:border-box}body{margin:0;background:#f3f5f8}.wrap{max-width:760px;margin:auto;padding:24px 16px 60px}.title{font-size:30px;font-weight:850;margin:8px 0 4px}.sub{color:#64748b;margin-bottom:18px}.card{background:#fff;border-radius:20px;padding:20px;box-shadow:0 8px 28px rgba(15,23,42,.08);margin-bottom:16px}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.field{margin:12px 0}.field label{display:block;font-size:14px;font-weight:750;margin-bottom:7px;color:#475569}input,select,textarea{width:100%;font-size:18px;border:1px solid #cbd5e1;border-radius:12px;padding:14px;background:#fff;color:#18212f;font-family:inherit}textarea{min-height:126px;resize:vertical;line-height:1.5}button{border:0;border-radius:14px;padding:15px;font-size:18px;font-weight:800;cursor:pointer;font-family:inherit}.primary{width:100%;background:#1d4ed8;color:#fff;margin-top:14px}.notice-send{background:#0369a1}.primary:disabled,.notice-send:disabled{opacity:.45;cursor:default}.mode{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}.modebtn{background:#eef2f7;color:#475569}.modebtn.active{background:#1e3a8a;color:#fff}.modebtn.notice.active{background:#0369a1}.status{border-radius:12px;padding:13px;margin-top:14px;display:none}.ok{display:block;background:#ecfdf5;color:#166534}.warn{display:block;background:#fff7ed;color:#9a3412}.err{display:block;background:#fef2f2;color:#991b1b}.small{font-size:13px;color:#64748b}.hint{font-size:14px;color:#64748b;line-height:1.45;margin-top:7px}.schedule-note{background:#fff7ed;color:#9a3412;padding:10px 12px;border-radius:10px;margin-top:8px;font-size:13px}.recent{font-size:14px}.recent-item{padding:11px 0;border-bottom:1px solid #eef2f7;display:flex;align-items:center;gap:8px;flex-wrap:wrap}.recent-item .txt{flex:1;min-width:220px}.class-badge{font-weight:850}.type-badge{display:inline-block;padding:2px 7px;border-radius:7px;font-size:12px;font-weight:800;background:#e8eefb;color:#1e3a8a}.type-badge.notice{background:#e0f2fe;color:#075985}.settings summary{cursor:pointer;font-weight:800}.mini{padding:8px 12px;font-size:14px;border-radius:10px;background:#e8eefb;color:#1e3a8a}.mini.cancel{background:#fef2f2;color:#991b1b}.mini:disabled{opacity:.5}.cancelled .txt{text-decoration:line-through;color:#94a3b8}.head{display:flex;justify-content:space-between;align-items:center}.keyrow{display:flex;gap:8px}.keyrow input{flex:1}.keyrow button{flex:0 0 auto;background:#334155;color:white;padding:12px 16px;font-size:15px}.hidden{display:none!important}.scopebox{padding:12px 14px;border-radius:12px;background:#f8fafc;border:1px solid #e2e8f0}.scopebox strong{display:block;margin-bottom:5px}.danger-note{color:#9a3412}.editbar{display:flex;justify-content:space-between;align-items:center;background:#eff6ff;padding:10px;border-radius:10px;margin-top:10px}.editbar button{padding:7px 10px;font-size:13px;background:#e2e8f0;color:#334155}@media(max-width:520px){.grid,.mode{grid-template-columns:1fr}.title{font-size:26px}.keyrow{display:block}.keyrow button{width:100%;margin-top:8px}}
+</style></head><body><div class="wrap">
+<div class="title">🔔 학생 호출 · 전달</div><div class="sub">특정 반 또는 학년 전체에 호출·전달할 수 있습니다. <span id="hours"></span></div>
+<div class="card">
+ <div class="mode"><button type="button" class="modebtn active" id="modeCall">학생 호출</button><button type="button" class="modebtn notice" id="modeNotice">전달사항</button></div>
+ <div class="grid"><div class="field"><label for="grade">학년</label><select id="grade"></select></div><div class="field"><label for="classNo">반</label><select id="classNo"></select></div></div>
+ <div id="callPanel">
+  <div class="field"><label for="callScope">호출 대상</label><select id="callScope"><option value="class">선택한 반</option><option value="grade">학년 전체</option></select></div>
+  <div class="scopebox"><strong id="callTarget"></strong><span class="small" id="devicesCall"></span></div>
+  <div class="field"><label for="student">학생 이름</label><input id="student" autocomplete="off" maxlength="30"></div>
+  <div class="field"><label for="callLocation">호출 위치</label><input id="callLocation" autocomplete="off" maxlength="40" placeholder="호출 위치 입력"></div>
+ </div>
+ <div id="noticePanel" class="hidden">
+  <div class="field"><label for="noticeScope">전달 대상</label><select id="noticeScope"><option value="class">선택한 반</option><option value="grade">학년 전체</option></select></div>
+  <div class="scopebox"><strong id="noticeTarget"></strong><span class="small" id="noticeDevices"></span></div>
+  <div class="field"><label for="message">전달사항</label><textarea id="message" maxlength="200"></textarea><div class="hint">전자칠판에서 “선생님 전달사항입니다. …” 형식으로 화면 표시와 TTS 안내가 나옵니다. (최대 200자)</div></div>
+ </div>
+ <div class="field"><label for="sendMode">전송 방식</label><select id="sendMode"><option value="now">즉시 전송</option><option value="schedule">예약 전송</option></select></div>
+ <div id="scheduleBox" class="hidden"><div class="field"><label for="scheduleAt">예약 날짜·시간</label><input id="scheduleAt" type="datetime-local"></div><div class="schedule-note">예약 전송은 시스템 사정에 따라 설정한 시각에서 약 1분 정도 오차가 발생할 수 있습니다.</div><div id="editBar" class="editbar hidden"><span>예약 수정 중</span><button type="button" id="cancelEditBtn">수정 취소</button></div></div>
+ <button class="primary" id="sendBtn">학생 호출</button><div id="status" class="status"></div>
 </div>
-<script>
-const $=id=>document.getElementById(id);
-const store={get:k=>{try{return localStorage.getItem('studentcall_'+k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem('studentcall_'+k,v)}catch(e){}}};
-function escapeHtml(s){return String(s??'').replace(/[&<>'\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','\"':'&quot;'}[c]))}
-function setStatus(text,type){const s=$('status');s.className='status '+type;s.textContent=text}
-function run(fn,...args){return new Promise((resolve,reject)=>google.script.run.withSuccessHandler(resolve).withFailureHandler(e=>reject(new Error(e&&e.message||String(e))))[fn](...args))}
-function fillSelect(el,n){el.innerHTML='';for(let i=1;i<=n;i++){const o=document.createElement('option');o.value=o.textContent=i;el.appendChild(o)}}
-
-let classCounts=[5,5,4],locs=[],selectedLocation='',online={},gradeOnline={},recentItems=[],freshMs=180000,pollSeconds=10,activeStart='08:00',activeEnd='22:00',sending=false,mode='call';
-const classId=()=>`${$('grade').value}-${$('classNo').value}`;
-const storedKey=()=>store.get('teacherKey')||'';
-const toMin=t=>{const[h,m]=t.split(':');return +h*60+ +m};
-function activeNow(){const p=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Seoul',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date());const n=toMin(p),a=toMin(activeStart),b=toMin(activeEnd);return a<=b?n>=a&&n<b:n>=a||n<b}
-function targetLabel(target){return target.endsWith('-*')?`${target.split('-')[0]}학년 전체`:`${target.split('-')[0]}학년 ${target.split('-')[1]}반`}
-
-function rebuildGrades(){fillSelect($('grade'),classCounts.length);const g=Math.min(classCounts.length,Math.max(1,+(store.get('grade')||1)));$('grade').value=String(g);rebuildClasses()}
-function rebuildClasses(){const g=+$('grade').value||1;fillSelect($('classNo'),classCounts[g-1]||1);const saved=+(store.get('classNo')||1);$('classNo').value=String(Math.min(classCounts[g-1]||1,Math.max(1,saved)));renderTargets()}
-function renderHours(){const on=activeNow();$('hours').textContent=`(운영 시간 ${activeStart}~${activeEnd})`;if(!sending){$('callBtn').disabled=!on;$('noticeBtn').disabled=!on}if(!on){$('callBtn').textContent=`운영 시간이 아닙니다 (${activeStart}~${activeEnd})`;$('noticeBtn').textContent=`운영 시간이 아닙니다 (${activeStart}~${activeEnd})`}else{renderTargets()}}
-function renderLocations(){const box=$('locations');box.innerHTML='';locs.concat(['기타']).forEach(x=>{const b=document.createElement('button');b.type='button';b.className='chip '+(selectedLocation===x?'active':'');b.textContent=x;b.onclick=()=>{selectedLocation=x;$('customLocation').style.display=x==='기타'?'block':'none';if(x==='기타')$('customLocation').focus();renderLocations()};box.appendChild(b)})}
-function renderKeyState(){const has=!!storedKey();$('keyState').textContent=has?'교사용 키: 저장됨 ✓ (내용은 표시하지 않습니다)':'교사용 키가 아직 저장되지 않았습니다.';$('keyState').className='hint'+(has?'':' danger-note')}
-function renderTargets(){
- const cid=classId(),g=$('grade').value,n=online[cid]||0;
- $('devicesCall').textContent=`${targetLabel(cid)} 전자칠판 연결: ${n}대`+(n?'':' (최근 확인한 전자칠판이 없습니다)');
- const scope=$('noticeScope').value,target=scope==='grade'?`${g}-*`:cid,count=scope==='grade'?(gradeOnline[g]||0):n;
- $('noticeTarget').textContent=targetLabel(target);$('noticeDevices').textContent=`현재 연결된 전자칠판 ${count}대`+(count?'':' · 최근 확인한 전자칠판 없음');
- if(activeNow())$('noticeBtn').textContent=scope==='grade'?`${g}학년 전체에 전달`:'선택한 반에 전달';
-}
+<details class="card settings" id="settings"><summary>교사 설정</summary><div class="field"><label for="teacher">선생님 이름</label><input id="teacher" maxlength="30"></div><div class="field"><label for="teacherKeyInput">교사용 키</label><div class="keyrow"><input id="teacherKeyInput" type="password" autocomplete="new-password" placeholder="관리자에게 받은 키"><button type="button" id="saveKeyBtn">교사용 키 저장</button></div><div class="hint" id="keyState">교사용 키가 아직 저장되지 않았습니다.</div><div class="hint">저장된 키는 다시 표시하지 않습니다. 변경할 때만 새 키를 입력해 덮어쓰세요.</div></div></details>
+<div class="card"><div class="head"><b>예약된 호출 · 전달</b><button class="mini" id="refreshSchedulesBtn" type="button">새로고침</button></div><div id="schedules" class="recent"><div class="small" style="margin-top:8px">예약 없음</div></div></div>
+<div class="card"><div class="head"><b>최근 호출 · 전달</b><button class="mini" id="refreshBtn" type="button">새로고침</button></div><div id="recent" class="recent"><div class="small" style="margin-top:8px">교사용 키를 저장하면 최근 기록이 표시됩니다.</div></div></div>
+</div><script>
+const $=id=>document.getElementById(id);const store={get:k=>{try{return localStorage.getItem('studentcall_'+k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem('studentcall_'+k,v)}catch(e){}}};
+function escapeHtml(s){return String(s??'').replace(/[&<>'\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','\"':'&quot;'}[c]))}function setStatus(text,type){const s=$('status');s.className='status '+type;s.textContent=text}function run(fn,...args){return new Promise((resolve,reject)=>google.script.run.withSuccessHandler(resolve).withFailureHandler(e=>reject(new Error(e&&e.message||String(e))))[fn](...args))}function fillSelect(el,n){el.innerHTML='';for(let i=1;i<=n;i++){const o=document.createElement('option');o.value=o.textContent=i;el.appendChild(o)}}
+let classCounts=[5,5,4],online={},gradeOnline={},recentItems=[],schedules=[],freshMs=180000,pollSeconds=10,activeStart='08:00',activeEnd='22:00',sending=false,mode='call',editingScheduleId=null;
+const classId=()=>`${$('grade').value}-${$('classNo').value}`;const storedKey=()=>store.get('teacherKey')||'';const toMin=t=>{const[h,m]=t.split(':');return +h*60+ +m};function activeNow(){const p=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Seoul',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date());const n=toMin(p),a=toMin(activeStart),b=toMin(activeEnd);return a<=b?n>=a&&n<b:n>=a||n<b}function targetLabel(target){return target.endsWith('-*')?`${target.split('-')[0]}학년 전체`:`${target.split('-')[0]}학년 ${target.split('-')[1]}반`}
+function rebuildGrades(){fillSelect($('grade'),classCounts.length);const g=Math.min(classCounts.length,Math.max(1,+(store.get('grade')||1)));$('grade').value=String(g);rebuildClasses()}function rebuildClasses(){const g=+$('grade').value||1;fillSelect($('classNo'),classCounts[g-1]||1);const saved=+(store.get('classNo')||1);$('classNo').value=String(Math.min(classCounts[g-1]||1,Math.max(1,saved)));renderTargets()}
+function scopeFor(m){return $(m==='call'?'callScope':'noticeScope').value}function targetFor(m){return scopeFor(m)==='grade'?`${$('grade').value}-*`:classId()}function countFor(target){return target.endsWith('-*')?(gradeOnline[target.split('-')[0]]||0):(online[target]||0)}
+function renderTargets(){const callT=targetFor('call'),noticeT=targetFor('notice'),callN=countFor(callT),noticeN=countFor(noticeT);$('callTarget').textContent=targetLabel(callT);$('devicesCall').textContent=`현재 연결된 전자칠판 ${callN}대`+(callN?'':' · 최근 확인한 전자칠판 없음');$('noticeTarget').textContent=targetLabel(noticeT);$('noticeDevices').textContent=`현재 연결된 전자칠판 ${noticeN}대`+(noticeN?'':' · 최근 확인한 전자칠판 없음');$('classNo').disabled=scopeFor(mode)==='grade';renderSendButton()}
+function renderHours(){const on=activeNow();$('hours').textContent=`(운영 시간 ${activeStart}~${activeEnd})`;if(!sending&&$('sendMode').value==='now')$('sendBtn').disabled=!on;else if(!sending)$('sendBtn').disabled=false;renderSendButton()}
+function renderSendButton(){if(sending)return;const scheduled=$('sendMode').value==='schedule',grade=scopeFor(mode)==='grade',editing=editingScheduleId!==null;if(editing){$('sendBtn').textContent='예약 수정 저장';return}if(mode==='call')$('sendBtn').textContent=scheduled?(grade?'학년 전체 호출 예약':'학생 호출 예약'):(grade?'학년 전체 학생 호출':'학생 호출');else $('sendBtn').textContent=scheduled?(grade?'학년 전체 전달 예약':'전달 예약'):(grade?'학년 전체에 전달':'선택한 반에 전달');if($('sendMode').value==='now'&&!activeNow())$('sendBtn').textContent=`운영 시간이 아닙니다 (${activeStart}~${activeEnd})`}
 function setMode(next){mode=next;const call=next==='call';$('modeCall').classList.toggle('active',call);$('modeNotice').classList.toggle('active',!call);$('callPanel').classList.toggle('hidden',!call);$('noticePanel').classList.toggle('hidden',call);renderTargets()}
-
-async function init(){
- try{const cfg=await run('getConfig');classCounts=cfg.classCounts||[5,5,4];locs=cfg.locations;pollSeconds=cfg.pollSeconds;activeStart=cfg.activeStart;activeEnd=cfg.activeEnd}
- catch(e){classCounts=[5,5,4];locs=['교무실','행정실','상담실','보건실','과학실'];setStatus('설정을 불러오지 못했습니다: '+e.message,'err')}
- rebuildGrades();selectedLocation=locs[0]||'기타';renderLocations();renderHours();renderKeyState();setInterval(renderHours,30000);
- const teacher=store.get('teacher');if(teacher)$('teacher').value=teacher;$('teacher').addEventListener('change',()=>store.set('teacher',$('teacher').value.trim()));
- $('grade').addEventListener('change',()=>{store.set('grade',$('grade').value);store.set('classNo','1');rebuildClasses();refresh()});
- $('classNo').addEventListener('change',()=>{store.set('classNo',$('classNo').value);renderTargets();refresh()});
- $('noticeScope').addEventListener('change',renderTargets);
- if(!storedKey()||!$('teacher').value.trim())$('settings').open=true;
- refresh();setInterval(()=>{if(!document.hidden)refresh()},20000);
-}
-
-async function saveTeacherKey(){
- const entered=$('teacherKeyInput').value.trim();if(!entered){setStatus('저장할 교사용 키를 입력해 주세요.','err');return}
- const b=$('saveKeyBtn');b.disabled=true;
- try{await run('checkTeacherKey',entered);store.set('teacherKey',entered);$('teacherKeyInput').value='';renderKeyState();setStatus('교사용 키를 저장했습니다. 저장된 값은 화면에 다시 표시하지 않습니다.','ok');refresh()}
- catch(e){setStatus(e.message,'err')}
- finally{b.disabled=false}
-}
-
-async function refresh(){
- const k=storedKey();if(!k){online={};gradeOnline={};renderTargets();return}
- try{const d=await run('getDashboard',k);online=d.online||{};gradeOnline=d.gradeOnline||{};recentItems=d.items||[];freshMs=d.freshMs||180000;renderTargets();renderRecent()}
- catch(e){$('recent').innerHTML=`<div class="small" style="margin-top:8px">${escapeHtml(e.message)}</div>`}
-}
-
+function setSendMode(){const reserve=$('sendMode').value==='schedule';$('scheduleBox').classList.toggle('hidden',!reserve);if(reserve&&!$('scheduleAt').value)setDefaultSchedule();renderHours()}
+function kstParts(ms){const p=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date(ms));const o={};p.forEach(x=>o[x.type]=x.value);return `${o.year}-${o.month}-${o.day}T${o.hour}:${o.minute}`}function setDefaultSchedule(){const v=kstParts(Date.now()+5*60000);$('scheduleAt').value=v;$('scheduleAt').min=kstParts(Date.now()+60000)}
+function renderKeyState(){const has=!!storedKey();$('keyState').textContent=has?'교사용 키: 저장됨 ✓ (내용은 표시하지 않습니다)':'교사용 키가 아직 저장되지 않았습니다.';$('keyState').className='hint'+(has?'':' danger-note')}
+async function init(){try{const cfg=await run('getConfig');classCounts=cfg.classCounts||[5,5,4];pollSeconds=cfg.pollSeconds;activeStart=cfg.activeStart;activeEnd=cfg.activeEnd}catch(e){setStatus('설정을 불러오지 못했습니다: '+e.message,'err')}rebuildGrades();renderHours();renderKeyState();setInterval(renderHours,30000);const teacher=store.get('teacher');if(teacher)$('teacher').value=teacher;$('teacher').addEventListener('change',()=>store.set('teacher',$('teacher').value.trim()));$('grade').addEventListener('change',()=>{store.set('grade',$('grade').value);store.set('classNo','1');rebuildClasses();refresh()});$('classNo').addEventListener('change',()=>{store.set('classNo',$('classNo').value);renderTargets();refresh()});$('callScope').addEventListener('change',renderTargets);$('noticeScope').addEventListener('change',renderTargets);$('sendMode').addEventListener('change',setSendMode);if(!storedKey()||!$('teacher').value.trim())$('settings').open=true;refresh();setInterval(()=>{if(!document.hidden)refresh()},20000)}
+async function saveTeacherKey(){const entered=$('teacherKeyInput').value.trim();if(!entered){setStatus('저장할 교사용 키를 입력해 주세요.','err');return}const b=$('saveKeyBtn');b.disabled=true;try{await run('checkTeacherKey',entered);store.set('teacherKey',entered);$('teacherKeyInput').value='';renderKeyState();setStatus('교사용 키를 저장했습니다. 저장된 값은 화면에 다시 표시하지 않습니다.','ok');refresh()}catch(e){setStatus(e.message,'err')}finally{b.disabled=false}}
+async function refresh(){const k=storedKey();if(!k){online={};gradeOnline={};recentItems=[];schedules=[];renderTargets();renderRecent();renderSchedules();return}try{const[d,s]=await Promise.all([run('getDashboard',k),run('getSchedules',k)]);online=d.online||{};gradeOnline=d.gradeOnline||{};recentItems=d.items||[];freshMs=d.freshMs||180000;schedules=s||[];renderTargets();renderRecent();renderSchedules()}catch(e){$('recent').innerHTML=`<div class="small" style="margin-top:8px">${escapeHtml(e.message)}</div>`}}
 function requireTeacher(){const teacher=$('teacher').value.trim();if(!teacher||!storedKey()){$('settings').open=true;setStatus('교사 설정에서 선생님 이름과 교사용 키를 저장해 주세요.','err');return null}store.set('teacher',teacher);return teacher}
-async function callStudent(){
- const teacher=requireTeacher();if(!teacher)return;const student=$('student').value.trim();const location=selectedLocation==='기타'?$('customLocation').value.trim():selectedLocation;
- if(!student||!location){setStatus('학생 이름과 호출 위치를 확인해 주세요.','err');return}if(!activeNow()){setStatus(`운영 시간(${activeStart}~${activeEnd})이 아니라 전자칠판에 표시되지 않습니다.`,'err');return}
- const btn=$('callBtn');btn.disabled=true;sending=true;setStatus('호출 보내는 중…','warn');let ok=false;
- try{const r=await run('callStudent',storedKey(),{classId:classId(),teacher,student,location});ok=true;setStatus(r.onlineDevices>0?`호출했습니다 · ${targetLabel(classId())} 전자칠판 ${r.onlineDevices}대가 ${pollSeconds}초 안에 표시합니다.`:`호출은 기록됐지만 ${targetLabel(classId())}에서 최근 확인한 전자칠판이 없습니다.`,r.onlineDevices>0?'ok':'warn');$('student').value='';$('student').focus();refresh();setTimeout(refresh,(pollSeconds+3)*1000)}
- catch(e){setStatus(e.message,'err')}finally{setTimeout(()=>{sending=false;renderHours()},ok?3000:0)}
-}
-
-async function sendNotice(){
- const teacher=requireTeacher();if(!teacher)return;const message=$('message').value.trim();if(!message){setStatus('전달사항을 입력해 주세요.','err');return}if(!activeNow()){setStatus(`운영 시간(${activeStart}~${activeEnd})이 아니라 전자칠판에 표시되지 않습니다.`,'err');return}
- const scope=$('noticeScope').value,g=$('grade').value,target=scope==='grade'?`${g}-*`:classId();
- if(scope==='grade'&&!confirm(`${g}학년 전체 전자칠판에 전달합니다.\n\n${message}\n\n보내시겠습니까?`))return;
- const btn=$('noticeBtn');btn.disabled=true;sending=true;setStatus('전달사항 보내는 중…','warn');let ok=false;
- try{const r=await run('sendNotice',storedKey(),{target,teacher,message});ok=true;setStatus(r.onlineDevices>0?`${targetLabel(target)}에 전달했습니다 · 연결된 전자칠판 ${r.onlineDevices}대`:`전달은 기록됐지만 ${targetLabel(target)}에서 최근 확인한 전자칠판이 없습니다.`,r.onlineDevices>0?'ok':'warn');$('message').value='';refresh();setTimeout(refresh,(pollSeconds+3)*1000)}
- catch(e){setStatus(e.message,'err')}finally{setTimeout(()=>{sending=false;renderHours()},ok?3000:0)}
-}
-
-function renderRecent(){
- const box=$('recent');if(!recentItems.length){box.innerHTML='<div class="small" style="margin-top:8px">기록 없음</div>';return}
- box.innerHTML=recentItems.map((x,i)=>{const time=new Date(x.sentAt).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}),notice=x.type==='notice',state=x.cancelled?'취소됨':(x.shown?`표시 ${x.shown}대`:'표시 확인 전'),cancellable=!x.cancelled&&Date.now()-x.sentAt<freshMs;
-  const detail=notice?`전달사항: ${escapeHtml(x.message)}`:`${escapeHtml(x.student)} → ${escapeHtml(x.location)}`;
-  return `<div class="recent-item${x.cancelled?' cancelled':''}"><span class="txt"><span class="type-badge${notice?' notice':''}">${notice?'전달':'호출'}</span> <span class="class-badge">${escapeHtml(targetLabel(x.classId))}</span> · ${detail} <span class="small">(${escapeHtml(x.teacher)} · ${time} · ${state})</span></span>`+(cancellable?`<button class="mini cancel" data-act="cancel" data-i="${i}">${notice?'전달 취소':'호출 취소'}</button>`:'')+`<button class="mini" data-act="resend" data-i="${i}">다시 표시</button></div>`}).join('')
-}
-
-$('recent').addEventListener('click',async e=>{const b=e.target.closest('button[data-act]');if(!b)return;const x=recentItems[+b.dataset.i];b.disabled=true;try{if(b.dataset.act==='cancel'){await run('cancelCall',storedKey(),x.id);setStatus(`${targetLabel(x.classId)} ${x.type==='notice'?'전달':'호출'}을 취소했습니다.`,'ok')}else if(x.type==='notice'){const r=await run('sendNotice',storedKey(),{target:x.classId,teacher:x.teacher,message:x.message});setStatus(r.onlineDevices>0?`다시 전달 · ${targetLabel(x.classId)} 전자칠판 ${r.onlineDevices}대`:`${targetLabel(x.classId)}에서 최근 확인한 전자칠판이 없습니다.`,r.onlineDevices>0?'ok':'warn')}else{const r=await run('callStudent',storedKey(),{classId:x.classId,teacher:x.teacher,student:x.student,location:x.location});setStatus(r.onlineDevices>0?`다시 표시 · ${targetLabel(x.classId)} 전자칠판 ${r.onlineDevices}대`:`${targetLabel(x.classId)}에서 최근 확인한 전자칠판이 없습니다.`,r.onlineDevices>0?'ok':'warn')}refresh()}catch(err){setStatus(err.message,'err');b.disabled=false}});
-
-$('modeCall').onclick=()=>setMode('call');$('modeNotice').onclick=()=>setMode('notice');$('callBtn').onclick=callStudent;$('noticeBtn').onclick=sendNotice;$('saveKeyBtn').onclick=saveTeacherKey;$('refreshBtn').onclick=refresh;$('student').addEventListener('keydown',e=>{if(e.key==='Enter')callStudent()});
-init();
-</script>
-</body>
-</html>
+function currentPayload(){const teacher=requireTeacher();if(!teacher)return null;const target=targetFor(mode);if(mode==='call')return{type:'call',target,teacher,student:$('student').value.trim(),location:$('callLocation').value.trim()};return{type:'notice',target,teacher,message:$('message').value.trim()}}
+async function sendCurrent(){const data=currentPayload();if(!data)return;if(mode==='call'&&(!data.student||!data.location)){setStatus('학생 이름과 호출 위치를 확인해 주세요.','err');return}if(mode==='notice'&&!data.message){setStatus('전달사항을 입력해 주세요.','err');return}const grade=data.target.endsWith('-*');if(grade){const text=mode==='call'?`${targetLabel(data.target)} 전자칠판에서 ${data.student} 학생을 호출합니다.\n호출 위치: ${data.location}`:`${targetLabel(data.target)} 전자칠판에 전달합니다.\n\n${data.message}`;if(!confirm(text+'\n\n계속하시겠습니까?'))return}if($('sendMode').value==='schedule'){data.scheduleAt=$('scheduleAt').value;if(!data.scheduleAt){setStatus('예약 날짜와 시간을 입력해 주세요.','err');return}return saveSchedule(data)}if(!activeNow()){setStatus(`운영 시간(${activeStart}~${activeEnd})이 아니라 전자칠판에 표시되지 않습니다.`,'err');return}sending=true;$('sendBtn').disabled=true;setStatus(mode==='call'?'호출 보내는 중…':'전달사항 보내는 중…','warn');let ok=false;try{const r=mode==='call'?await run('callStudent',storedKey(),data):await run('sendNotice',storedKey(),data);ok=true;setStatus(r.onlineDevices>0?`${targetLabel(data.target)}에 ${mode==='call'?'호출':'전달'}했습니다 · 전자칠판 ${r.onlineDevices}대`:`${mode==='call'?'호출':'전달'}은 기록됐지만 ${targetLabel(data.target)}에서 최근 확인한 전자칠판이 없습니다.`,r.onlineDevices>0?'ok':'warn');if(mode==='call'){$('student').value='';$('callLocation').value=''}else $('message').value='';refresh();setTimeout(refresh,(pollSeconds+3)*1000)}catch(e){setStatus(e.message,'err')}finally{setTimeout(()=>{sending=false;renderHours()},ok?3000:0)}}
+async function saveSchedule(data){sending=true;$('sendBtn').disabled=true;setStatus(editingScheduleId===null?'예약 저장 중…':'예약 수정 중…','warn');try{if(editingScheduleId===null)await run('createSchedule',storedKey(),data);else await run('updateSchedule',storedKey(),editingScheduleId,data);setStatus(`예약을 ${editingScheduleId===null?'저장':'수정'}했습니다. 약 1분 정도 전송 오차가 발생할 수 있습니다.`,'ok');clearScheduleEdit();if(mode==='call'){$('student').value='';$('callLocation').value=''}else $('message').value='';refresh()}catch(e){setStatus(e.message,'err')}finally{sending=false;renderHours()}}
+function clearScheduleEdit(){editingScheduleId=null;$('editBar').classList.add('hidden');$('sendMode').value='now';setSendMode()}
+function renderSchedules(){const box=$('schedules');if(!schedules.length){box.innerHTML='<div class="small" style="margin-top:8px">예약 없음</div>';return}box.innerHTML=schedules.map((x,i)=>{const detail=x.type==='notice'?`전달사항: ${escapeHtml(x.message)}`:`${escapeHtml(x.student)} → ${escapeHtml(x.location)}`;const when=new Date(x.scheduleAt).toLocaleString('ko-KR',{timeZone:'Asia/Seoul',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});return `<div class="recent-item"><span class="txt"><span class="type-badge${x.type==='notice'?' notice':''}">${x.type==='notice'?'전달':'호출'}</span> <span class="class-badge">${escapeHtml(targetLabel(x.target))}</span> · ${detail} <span class="small">(${escapeHtml(x.teacher)} · ${when} 예약)</span></span><button class="mini" data-sact="edit" data-i="${i}">수정</button><button class="mini cancel" data-sact="cancel" data-i="${i}">예약 취소</button></div>`}).join('')}
+function editSchedule(x){setMode(x.type==='notice'?'notice':'call');const parts=x.target.split('-');$('grade').value=parts[0];rebuildClasses();const scope=x.target.endsWith('-*')?'grade':'class';$(x.type==='notice'?'noticeScope':'callScope').value=scope;if(scope==='class')$('classNo').value=parts[1];if(x.type==='notice')$('message').value=x.message;else{$('student').value=x.student;$('callLocation').value=x.location}$('teacher').value=x.teacher;$('sendMode').value='schedule';$('scheduleAt').value=x.scheduleLocal;editingScheduleId=x.id;$('editBar').classList.remove('hidden');setSendMode();renderTargets();window.scrollTo({top:0,behavior:'smooth'})}
+function renderRecent(){const box=$('recent');if(!recentItems.length){box.innerHTML='<div class="small" style="margin-top:8px">기록 없음</div>';return}box.innerHTML=recentItems.map((x,i)=>{const time=new Date(x.sentAt).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}),notice=x.type==='notice',state=x.cancelled?'취소됨':(x.shown?`표시 ${x.shown}대`:'표시 확인 전'),cancellable=!x.cancelled&&Date.now()-x.sentAt<freshMs,detail=notice?`전달사항: ${escapeHtml(x.message)}`:`${escapeHtml(x.student)} → ${escapeHtml(x.location)}`;return `<div class="recent-item${x.cancelled?' cancelled':''}"><span class="txt"><span class="type-badge${notice?' notice':''}">${notice?'전달':'호출'}</span> <span class="class-badge">${escapeHtml(targetLabel(x.classId))}</span> · ${detail} <span class="small">(${escapeHtml(x.teacher)} · ${time} · ${state})</span></span>`+(cancellable?`<button class="mini cancel" data-act="cancel" data-i="${i}">${notice?'전달 취소':'호출 취소'}</button>`:'')+`<button class="mini" data-act="resend" data-i="${i}">다시 표시</button></div>`}).join('')}
+$('recent').addEventListener('click',async e=>{const b=e.target.closest('button[data-act]');if(!b)return;const x=recentItems[+b.dataset.i];b.disabled=true;try{if(b.dataset.act==='cancel'){await run('cancelCall',storedKey(),x.id);setStatus(`${targetLabel(x.classId)} ${x.type==='notice'?'전달':'호출'}을 취소했습니다.`,'ok')}else if(x.type==='notice'){const r=await run('sendNotice',storedKey(),{target:x.classId,teacher:x.teacher,message:x.message});setStatus(`다시 전달 · ${targetLabel(x.classId)} 전자칠판 ${r.onlineDevices}대`,'ok')}else{const r=await run('callStudent',storedKey(),{target:x.classId,teacher:x.teacher,student:x.student,location:x.location});setStatus(`다시 표시 · ${targetLabel(x.classId)} 전자칠판 ${r.onlineDevices}대`,'ok')}refresh()}catch(err){setStatus(err.message,'err');b.disabled=false}});
+$('schedules').addEventListener('click',async e=>{const b=e.target.closest('button[data-sact]');if(!b)return;const x=schedules[+b.dataset.i];if(b.dataset.sact==='edit')return editSchedule(x);if(!confirm('이 예약을 취소하시겠습니까?'))return;b.disabled=true;try{await run('cancelSchedule',storedKey(),x.id);setStatus('예약을 취소했습니다.','ok');if(editingScheduleId===x.id)clearScheduleEdit();refresh()}catch(err){setStatus(err.message,'err');b.disabled=false}});
+$('modeCall').onclick=()=>setMode('call');$('modeNotice').onclick=()=>setMode('notice');$('sendBtn').onclick=sendCurrent;$('saveKeyBtn').onclick=saveTeacherKey;$('refreshBtn').onclick=refresh;$('refreshSchedulesBtn').onclick=refresh;$('cancelEditBtn').onclick=clearScheduleEdit;$('student').addEventListener('keydown',e=>{if(e.key==='Enter'&&$('sendMode').value==='now')sendCurrent()});init();
+</script></body></html>
