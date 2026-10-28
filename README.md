@@ -1,5 +1,5 @@
 # 학생 호출 시스템
-https://script.google.com/macros/s/AKfycbzsNNUH87PdGbbyc03DIUPJIpGxXseFBM6UvkYopkBaI7vuL2pCTMkzItVrE67ohfhWig/exec
+8ea841b558454d6ba59736a01a55173f
 .
 https://script.google.com/macros/s/AKfycbzsNNUH87PdGbbyc03DIUPJIpGxXseFBM6UvkYopkBaI7vuL2pCTMkzItVrE67ohfhWig/exec
 선생님이 휴대폰·PC에서 **학생 이름 + 호출 위치 + 반**을 입력하고 호출하면,
