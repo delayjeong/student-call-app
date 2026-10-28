@@ -101,8 +101,9 @@ const { load } = require('./gas-mock');
 
   if (process.argv[2]) await page.screenshot({ path: process.argv[2], fullPage: true });
 
-  // 운영 시간 밖: 호출/전달 모두 비활성 (22:30 KST = 13:30 UTC)
-  await page.clock.setFixedTime(new Date('2026-10-28T13:30:00Z'));
+  // 운영 시간 밖: 연속전송 잠금이 풀린 뒤 호출/전달 모두 비활성
+  await page.waitForTimeout(3100);
+  await page.clock.setFixedTime(new Date('2026-10-28T13:30:00Z')); // 22:30 KST
   await page.evaluate(() => renderHours());
   assert.ok(await page.isDisabled('#callBtn'));
   assert.ok(await page.isDisabled('#noticeBtn'));
