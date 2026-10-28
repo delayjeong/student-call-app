@@ -1,6 +1,4 @@
 # 학생 호출·전달 시스템
-https://script.google.com/macros/s/AKfycbzsNNUH87PdGbbyc03DIUPJIpGxXseFBM6UvkYopkBaI7vuL2pCTMkzItVrE67ohfhWig/exec
-8ea841b558454d6ba59736a01a55173f
 
 선생님이 휴대폰·PC의 Apps Script 웹앱에서 학생 호출 또는 전달사항을 보내면, 해당 반 전자칠판(Android)에 팝업과 TTS가 표시됩니다.
 
