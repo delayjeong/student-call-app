@@ -119,7 +119,7 @@ state.props.ACTIVE_HOURS = '25:00-99'; gas.clearCaches();
 assert.deepStrictEqual([gas.getConfig().activeStart, gas.getConfig().activeEnd], ['08:00', '22:00']);
 
 // 전달사항: 반 전달 + 학년 전체 전달
-state.now = kst(10, 0); gas.clearCaches();
+state.now = kst(10, 0); state.cache.clear(); gas.clearCaches();
 let baseline = poll({ key: D, classId: '1-1', deviceId: 'board-11' }).lastId;
 poll({ key: D, classId: '1-2', deviceId: 'board-12' });
 poll({ key: D, classId: '2-1', deviceId: 'board-21' });
