@@ -62,8 +62,13 @@ function load() {
     ScriptApp: { getProjectTriggers: () => state.triggers.map(h => ({ getHandlerFunction: () => h })), newTrigger: h => { state.triggers.push(h); return chain(); } },
     Utilities: {
       getUuid: () => crypto.randomUUID(),
-      // 'HH:mm' 형식만 지원 (Asia/Seoul = UTC+9, 서머타임 없음)
-      formatDate: (d, tz, fmt) => { if (tz !== 'Asia/Seoul' || fmt !== 'HH:mm') throw new Error('unsupported'); const k = new Date(d.getTime() + 9 * 3600e3); return String(k.getUTCHours()).padStart(2, '0') + ':' + String(k.getUTCMinutes()).padStart(2, '0'); },
+      formatDate: (d, tz, fmt) => {
+        if (tz !== 'Asia/Seoul') throw new Error('unsupported timezone');
+        const k = new Date(d.getTime() + 9 * 3600e3);
+        if (fmt === 'HH:mm') return String(k.getUTCHours()).padStart(2, '0') + ':' + String(k.getUTCMinutes()).padStart(2, '0');
+        if (fmt === 'M-d') return String(k.getUTCMonth() + 1) + '-' + String(k.getUTCDate());
+        throw new Error('unsupported format');
+      },
     },
     ContentService: { MimeType: { JSON: 'json' }, createTextOutput: s => ({ content: s, setMimeType() { return this; } }) },
     HtmlService: { createHtmlOutputFromFile: f => ({ file: f, setTitle() { return this; }, addMetaTag() { return this; } }) },
