@@ -28,11 +28,18 @@ assert.deepStrictEqual([r.ok,r.lastId,r.calls.length],[true,0,0]);
 poll({key:D,classId:'1-4',deviceId:'board-14'});
 const c1=gas.callStudent(T,{target:'1-5',teacher:'김수학',student:'김민수',location:'교무실'});
 assert.deepStrictEqual(plain(c1),{id:1,onlineDevices:1});
+assert.strictEqual(sheet.rows[1][2],'1-5');
 r=poll({key:D,classId:'1-5',deviceId:'board-15',after:'0'});assert.strictEqual(r.calls[0].student,'김민수');
 assert.strictEqual(poll({key:D,classId:'1-4',deviceId:'board-14',after:'0'}).calls.length,0);
 poll({key:D,classId:'1-5',deviceId:'board-15',after:'1',acked:'1'});assert.strictEqual(sheet.rows[1][7],1);
 const c2=gas.callStudent(T,{target:'1-5',teacher:'김수학',student:'박서연',location:'상담실'});gas.cancelCall(T,c2.id);
 r=poll({key:D,classId:'1-5',deviceId:'board-15',after:'1'});assert.deepStrictEqual([r.calls.length,r.cancelled],[0,[2]]);
+
+// Google Sheets가 1-5를 2026-01-05 날짜로 바꿔 둔 기존 행도 clearCaches 때 복구한다.
+sheet.rows[1][2]=new Date(Date.UTC(2026,0,4,15,0));
+state.cache.clear();gas.clearCaches();
+assert.strictEqual(sheet.rows[1][2],'1-5');
+assert.strictEqual(gas.getDashboard(T).items.find(x=>x.id===1).classId,'1-5');
 
 state.cache.set('config',JSON.stringify({pollSeconds:10,activeStart:'08:00',activeEnd:'22:00',teacherKey:T,deviceKey:D}));
 assert.deepStrictEqual(plain(gas.getConfig().classCounts),[5,5,4]);
@@ -49,7 +56,14 @@ r=poll({key:D,classId:'2-1',deviceId:'board-21',after:String(baseline)});assert.
 
 state.now=kst(10,0);state.cache.clear();gas.clearCaches();
 let s=gas.createSchedule(T,{type:'notice',target:'1-1',teacher:'정연기',message:'예약 전달',scheduleAt:localAt(10,5)});
+assert.strictEqual(scheduleSheet.rows.find(x=>x[0]===s.id)[2],'1-1');
 assert.strictEqual(gas.getSchedules(T).length,1);
+// 예약 시트에 이미 날짜형으로 저장된 대상도 동일하게 복구한다.
+const scheduledRow=scheduleSheet.rows.find(x=>x[0]===s.id);
+scheduledRow[2]=new Date(Date.UTC(2025,11,31,15,0));
+state.cache.clear();gas.clearCaches();
+assert.strictEqual(scheduledRow[2],'1-1');
+assert.strictEqual(gas.getSchedules(T)[0].target,'1-1');
 gas.updateSchedule(T,s.id,{type:'notice',target:'1-*',teacher:'정연기',message:'수정된 예약',scheduleAt:localAt(10,6)});
 assert.deepStrictEqual([gas.getSchedules(T)[0].target,gas.getSchedules(T)[0].message],['1-*','수정된 예약']);
 gas.cancelSchedule(T,s.id);assert.strictEqual(gas.getSchedules(T).length,0);
