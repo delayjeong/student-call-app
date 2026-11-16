@@ -57,7 +57,7 @@ public class MainActivity extends Activity {
         Button saveOptions=button("반·수신 설정 저장",Color.rgb(51,65,85));classCard.addView(saveOptions);saveOptions.setOnClickListener(v->{saveOptions();toast("반·수신 설정을 저장했습니다.");});
 
         LinearLayout muteCard=card(root,"TTS 음소거 · 웹앱 중앙 관리");
-        TextView muteHelp=text("모든 선생님이 교사용 웹앱에서 전체·학년·반별 음소거 시간대를 변경할 수 있습니다. 이 전자칠판은 서버에서 설정을 자동으로 받아옵니다. 팝업과 알림음은 계속 표시됩니다.",15,false);
+        TextView muteHelp=text("모든 선생님이 교사용 웹앱에서 전체·학년·반별 음소거 시간대를 변경할 수 있습니다. 이 전자칠판은 서버에서 설정을 자동으로 받아옵니다. 음소거 시간에는 팝업만 표시되고 알림음과 TTS는 모두 출력되지 않습니다.",15,false);
         muteHelp.setTextColor(Color.DKGRAY);muteCard.addView(muteHelp);
         muteState=text("",16,true);muteState.setPadding(0,10,0,8);muteCard.addView(muteState);
 
