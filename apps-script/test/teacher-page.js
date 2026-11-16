@@ -62,6 +62,37 @@ const { load } = require('./gas-mock');
   await page.waitForFunction(() => document.querySelector('#keyState').textContent.includes('저장됨'));
   assert.strictEqual(await page.inputValue('#teacherKeyInput'), '');
 
+  // 교사용 키 공유로 전체 교사가 중앙 TTS 음소거 설정을 변경할 수 있다.
+  await page.click('#muteSettings summary');
+  await page.waitForFunction(() => document.querySelector('#muteSource').textContent.includes('시간표가 없습니다'));
+  assert.strictEqual(await page.inputValue('#muteScope'),'all');
+  await page.click('#muteAddBtn');
+  await page.locator('#muteTimes input').nth(0).fill('08:40');
+  await page.locator('#muteTimes input').nth(1).fill('09:30');
+  page.once('dialog', d=>d.accept());
+  await page.click('#muteSaveBtn');
+  await page.waitForFunction(() => document.querySelector('#muteStatus').textContent.includes('저장했습니다'));
+  assert.deepStrictEqual(gas.getMuteSchedules(T).rules.all,['08:40-09:30']);
+  assert.strictEqual(poll({classId:'2-3',deviceId:'mute-board'}).muteWindows,'08:40-09:30');
+
+  await page.selectOption('#muteScope','grade');
+  await page.selectOption('#muteGrade','2');
+  assert.ok((await page.textContent('#muteSource')).includes('전체 공통'));
+  assert.strictEqual(await page.locator('#muteTimes .mute-time-row').count(),1);
+  await page.click('#muteTimes .mute-time-row button');
+  page.once('dialog', d=>d.accept());
+  await page.click('#muteSaveBtn');
+  await page.waitForFunction(() => document.querySelector('#muteStatus').textContent.includes('저장했습니다'));
+  assert.strictEqual(poll({classId:'2-3',deviceId:'mute-board'}).muteWindows,'');
+  assert.strictEqual(poll({classId:'1-3',deviceId:'mute-board'}).muteWindows,'08:40-09:30');
+  page.once('dialog', d=>d.accept());
+  await page.click('#muteResetBtn');
+  await page.waitForFunction(() => document.querySelector('#muteStatus').textContent.includes('삭제했습니다'));
+  assert.strictEqual(poll({classId:'2-3',deviceId:'mute-board'}).muteWindows,'08:40-09:30');
+  // 테스트 종료 시 초기 상태 복구
+  gas.deleteMuteSchedule(T,'all');
+
+
   // 전체 반 연결 현황: 서버의 실시간 대시보드 데이터를 그대로 사용
   await page.waitForFunction(() => document.querySelector('#boardMonitorSummary').textContent.includes('연결 2/14개 반'));
   await page.click('#boardMonitor summary');
