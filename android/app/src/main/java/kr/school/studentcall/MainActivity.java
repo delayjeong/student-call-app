@@ -2,7 +2,6 @@ package kr.school.studentcall;
 
 import android.Manifest;
 import android.app.Activity;
-import android.app.TimePickerDialog;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
@@ -17,8 +16,6 @@ import android.provider.Settings;
 import android.text.InputType;
 import android.view.View;
 import android.widget.*;
-import java.util.List;
-import java.util.Locale;
 
 public class MainActivity extends Activity {
     private EditText serverUrl,deviceKey;
@@ -26,7 +23,6 @@ public class MainActivity extends Activity {
     private CheckBox autoStart,sound,voice,voiceHideName;
     private TextView status,connectionState;
     private LinearLayout connectionFields;
-    private LinearLayout muteWindowList;
     private TextView muteState;
     private SharedPreferences prefs;
     private boolean loading=false;
@@ -60,16 +56,10 @@ public class MainActivity extends Activity {
         voiceHideName=check(classCard,"학생 호출 TTS에서 학생 이름 숨기기");
         Button saveOptions=button("반·수신 설정 저장",Color.rgb(51,65,85));classCard.addView(saveOptions);saveOptions.setOnClickListener(v->{saveOptions();toast("반·수신 설정을 저장했습니다.");});
 
-        LinearLayout muteCard=card(root,"TTS 음소거 시간대");
-        TextView muteHelp=text("설정한 시간에는 호출·전달 팝업과 알림음은 그대로 나오고 TTS 음성만 재생하지 않습니다. 여러 시간대를 추가할 수 있습니다.",15,false);
+        LinearLayout muteCard=card(root,"TTS 음소거 · 웹앱 중앙 관리");
+        TextView muteHelp=text("모든 선생님이 교사용 웹앱에서 전체·학년·반별 음소거 시간대를 변경할 수 있습니다. 이 전자칠판은 서버에서 설정을 자동으로 받아옵니다. 팝업과 알림음은 계속 표시됩니다.",15,false);
         muteHelp.setTextColor(Color.DKGRAY);muteCard.addView(muteHelp);
         muteState=text("",16,true);muteState.setPadding(0,10,0,8);muteCard.addView(muteState);
-        muteWindowList=new LinearLayout(this);muteWindowList.setOrientation(LinearLayout.VERTICAL);muteCard.addView(muteWindowList);
-        Button addMuteWindow=button("음소거 시간대 추가",Color.rgb(2,132,199));muteCard.addView(addMuteWindow);
-        addMuteWindow.setOnClickListener(v->editMuteWindow(-1));
-        TextView muteHint=text("시작 시각 포함 · 종료 시각 제외 · 자정을 넘는 구간도 지원",13,false);
-        muteHint.setTextColor(Color.GRAY);muteCard.addView(muteHint);
-        renderMuteWindows();
 
         LinearLayout connectionCard=card(root,"연결 정보");
         connectionState=text("",17,true);connectionState.setPadding(0,4,0,8);connectionCard.addView(connectionState);
@@ -107,72 +97,14 @@ public class MainActivity extends Activity {
     private Button button(String s,int color){Button b=new Button(this);b.setText(s);b.setTextSize(17);b.setTextColor(Color.WHITE);b.setAllCaps(false);b.setBackground(round(color,14));LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,64);p.setMargins(0,9,0,0);b.setLayoutParams(p);return b;}
     private GradientDrawable round(int color,int radius){GradientDrawable g=new GradientDrawable();g.setColor(color);g.setCornerRadius(radius);return g;}
 
-    private void renderMuteWindows(){
-        if(muteWindowList==null)return;
-        muteWindowList.removeAllViews();
-        List<MuteSchedule.Window> windows=MuteSchedule.parse(prefs.getString(Prefs.TTS_MUTE_WINDOWS,""));
-        if(windows.isEmpty()){
-            TextView empty=text("등록된 음소거 시간대가 없습니다.",15,false);
-            empty.setPadding(4,12,4,12);empty.setTextColor(Color.GRAY);muteWindowList.addView(empty);
-        }
-        for(int i=0;i<windows.size();i++){
-            final int index=i;
-            MuteSchedule.Window w=windows.get(i);
-            LinearLayout row=new LinearLayout(this);row.setGravity(android.view.Gravity.CENTER_VERTICAL);
-            TextView range=text(w.start+" ~ "+w.end,17,true);
-            row.addView(range,new LinearLayout.LayoutParams(0,-2,1));
-            Button edit=new Button(this);edit.setText("수정");edit.setTextSize(14);edit.setAllCaps(false);
-            row.addView(edit,new LinearLayout.LayoutParams(-2,-2));
-            edit.setOnClickListener(v->editMuteWindow(index));
-            Button delete=new Button(this);delete.setText("삭제");delete.setTextSize(14);delete.setAllCaps(false);
-            row.addView(delete,new LinearLayout.LayoutParams(-2,-2));
-            delete.setOnClickListener(v->new android.app.AlertDialog.Builder(this)
-                .setTitle("음소거 시간대 삭제")
-                .setMessage(w.start+" ~ "+w.end+" 구간을 삭제할까요?")
-                .setNegativeButton("취소",null)
-                .setPositiveButton("삭제",(d,which)->{
-                    List<MuteSchedule.Window> current=MuteSchedule.parse(prefs.getString(Prefs.TTS_MUTE_WINDOWS,""));
-                    if(index>=current.size())return;
-                    current.remove(index);
-                    prefs.edit().putString(Prefs.TTS_MUTE_WINDOWS,MuteSchedule.serialize(current)).apply();
-                    renderMuteWindows();updateStatus();
-                }).show());
-            muteWindowList.addView(row);
-        }
-        updateMuteState();
-    }
-
-    private void editMuteWindow(int index){
-        List<MuteSchedule.Window> windows=MuteSchedule.parse(prefs.getString(Prefs.TTS_MUTE_WINDOWS,""));
-        if(index>=windows.size())return;
-        String start=index<0?"08:40":windows.get(index).start;
-        String end=index<0?"09:30":windows.get(index).end;
-        TimePickerDialog first=new TimePickerDialog(this,(picker,hour,minute)->{
-            String chosenStart=String.format(Locale.US,"%02d:%02d",hour,minute);
-            TimePickerDialog second=new TimePickerDialog(this,(p,h,m)->{
-                String chosenEnd=String.format(Locale.US,"%02d:%02d",h,m);
-                if(chosenStart.equals(chosenEnd)){toast("시작과 종료 시각은 달라야 합니다.");return;}
-                List<MuteSchedule.Window> current=MuteSchedule.parse(prefs.getString(Prefs.TTS_MUTE_WINDOWS,""));
-                MuteSchedule.Window updated=new MuteSchedule.Window(chosenStart,chosenEnd);
-                if(index<0)current.add(updated);
-                else if(index<current.size())current.set(index,updated);
-                else return;
-                prefs.edit().putString(Prefs.TTS_MUTE_WINDOWS,MuteSchedule.serialize(current)).apply();
-                renderMuteWindows();updateStatus();
-                toast("TTS 음소거 시간대를 저장했습니다.");
-            },Integer.parseInt(end.substring(0,2)),Integer.parseInt(end.substring(3,5)),true);
-            second.setTitle("음소거 종료 시각");second.show();
-        },Integer.parseInt(start.substring(0,2)),Integer.parseInt(start.substring(3,5)),true);
-        first.setTitle("음소거 시작 시각");first.show();
-    }
-
     private void updateMuteState(){
         if(muteState==null)return;
+        boolean synced=prefs.getBoolean(Prefs.TTS_MUTE_SYNCED,false);
         int count=MuteSchedule.parse(prefs.getString(Prefs.TTS_MUTE_WINDOWS,"")).size();
-        boolean muted=MuteSchedule.isMutedNow(prefs.getString(Prefs.TTS_MUTE_WINDOWS,""));
-        String state=!prefs.getBoolean(Prefs.VOICE,true)?"TTS 전체 사용 안 함":
-            muted?"현재 TTS 음소거 중":"현재 TTS 음성 안내 가능";
-        muteState.setText(state+" · 등록된 시간대 "+count+"개");
+        boolean muted=synced&&MuteSchedule.isMutedNow(prefs.getString(Prefs.TTS_MUTE_WINDOWS,""));
+        String current=!prefs.getBoolean(Prefs.VOICE,true)?"TTS 전체 사용 안 함":
+            !synced?"웹앱 설정 수신 대기":muted?"현재 TTS 음소거 중":"현재 TTS 음성 안내 가능";
+        muteState.setText(current+" · 서버 시간대 "+(synced?String.valueOf(count):"미확인")+"개");
         muteState.setTextColor(muted?Color.rgb(185,28,28):Color.rgb(22,101,52));
     }
 
