@@ -97,7 +97,16 @@ public class CallReceiverService extends Service {
 
     private void enqueue(Call c){main.post(()->{if(!Settings.canDrawOverlays(this)){notifyCall(c);return;}queue.add(c);if(showingCall==null)showNext();});}
     private void cancel(String id){main.post(()->{for(Iterator<Call>it=queue.iterator();it.hasNext();)if(id.equals(it.next().id))it.remove();if(showingCall!=null&&id.equals(showingCall.id))dismiss();getSystemService(NotificationManager.class).cancel(notifyId(id));if(speaker!=null)speaker.cancel(id);});}
-    private void announce(Call c){SharedPreferences p=Prefs.get(this);if(speaker==null||!p.getBoolean(Prefs.VOICE,true)||(p.getBoolean(Prefs.TTS_MUTE_SYNCED,false)&&MuteSchedule.isMutedNow(p.getString(Prefs.TTS_MUTE_WINDOWS,""))))return;String spoken=c.isNotice()?Korean.noticeSpoken(c.teacher,c.message):Korean.spoken(c.teacher,c.student,c.location,p.getBoolean(Prefs.VOICE_HIDE_NAME,false));speaker.say(c.id,spoken);}
+    private void announce(Call c){
+        SharedPreferences p=Prefs.get(this);
+        if(speaker==null||!AudioPolicy.shouldSpeak(
+                p.getBoolean(Prefs.VOICE,true),
+                p.getBoolean(Prefs.TTS_MUTE_SYNCED,false),
+                p.getString(Prefs.TTS_MUTE_WINDOWS,""),
+                ActiveHours.nowMinutes(System.currentTimeMillis())))return;
+        String spoken=c.isNotice()?Korean.noticeSpoken(c.teacher,c.message):Korean.spoken(c.teacher,c.student,c.location,p.getBoolean(Prefs.VOICE_HIDE_NAME,false));
+        speaker.say(c.id,spoken);
+    }
     private static int notifyId(String callId){if(callId==null)return 1999;try{return 2000+(int)(Long.parseLong(callId)%100000);}catch(NumberFormatException e){return 2000+(callId.hashCode()&0xffff);}}
 
     private void notifyCall(Call c){
@@ -106,13 +115,20 @@ public class CallReceiverService extends Service {
         PendingIntent pi=PendingIntent.getActivity(this,id,i,PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT);
         String title,body;if(c.isNotice()){title="📢 전달사항";body=Korean.noticeSpoken(c.teacher,c.message);}else{title="🔔 "+c.student+" 학생 호출";body=c.teacher+" 선생님 호출 · "+c.location+Korean.directionParticle(c.location)+" 오세요";}
         Notification n=new Notification.Builder(this,ALERT_CHANNEL).setSmallIcon(android.R.drawable.ic_dialog_info).setContentTitle(title).setContentText(body).setStyle(new Notification.BigTextStyle().bigText(body)).setCategory(Notification.CATEGORY_ALARM).setVisibility(Notification.VISIBILITY_PUBLIC).setContentIntent(pi).setFullScreenIntent(pi,true).setAutoCancel(true).setTimeoutAfter(5*60_000L).build();
-        try{getSystemService(NotificationManager.class).notify(id,n);}catch(Exception e){return;}if(Prefs.get(this).getBoolean(Prefs.SOUND,true))beep();announce(c);if(c.id!=null)synchronized(pendingAcks){pendingAcks.add(c.id);}if(!running)main.postDelayed(()->{if(!running&&showingCall==null)stopSelf();},25_000);
+        try{getSystemService(NotificationManager.class).notify(id,n);}catch(Exception e){return;}if(shouldBeep())beep();announce(c);if(c.id!=null)synchronized(pendingAcks){pendingAcks.add(c.id);}if(!running)main.postDelayed(()->{if(!running&&showingCall==null)stopSelf();},25_000);
     }
 
-    private void showNext(){removeOverlay();showingCall=null;if(queue.isEmpty()){if(!running)stopSelf();return;}if(!Settings.canDrawOverlays(this)){while(!queue.isEmpty())notifyCall(queue.poll());return;}Call c=queue.poll();card=new CallCard(this,c.type,c.teacher,c.student,c.location,c.message,this::dismiss);View box=card.root;remaining=CallCard.SHOW_SECONDS;updateCountdown();WindowManager.LayoutParams lp=new WindowManager.LayoutParams((int)(getResources().getDisplayMetrics().widthPixels*0.72),WindowManager.LayoutParams.WRAP_CONTENT,WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE|WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL|WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,PixelFormat.TRANSLUCENT);lp.gravity=Gravity.CENTER;try{wm.addView(box,lp);}catch(Exception e){card=null;notifyCall(c);showNext();return;}overlay=box;showingCall=c;if(Prefs.get(this).getBoolean(Prefs.SOUND,true))beep();announce(c);if(c.id!=null)synchronized(pendingAcks){pendingAcks.add(c.id);}main.postDelayed(tick,1000);}
+    private void showNext(){removeOverlay();showingCall=null;if(queue.isEmpty()){if(!running)stopSelf();return;}if(!Settings.canDrawOverlays(this)){while(!queue.isEmpty())notifyCall(queue.poll());return;}Call c=queue.poll();card=new CallCard(this,c.type,c.teacher,c.student,c.location,c.message,this::dismiss);View box=card.root;remaining=CallCard.SHOW_SECONDS;updateCountdown();WindowManager.LayoutParams lp=new WindowManager.LayoutParams((int)(getResources().getDisplayMetrics().widthPixels*0.72),WindowManager.LayoutParams.WRAP_CONTENT,WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE|WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL|WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,PixelFormat.TRANSLUCENT);lp.gravity=Gravity.CENTER;try{wm.addView(box,lp);}catch(Exception e){card=null;notifyCall(c);showNext();return;}overlay=box;showingCall=c;if(shouldBeep())beep();announce(c);if(c.id!=null)synchronized(pendingAcks){pendingAcks.add(c.id);}main.postDelayed(tick,1000);}
     private void onTick(){if(showingCall==null)return;remaining--;if(remaining<=0){dismiss();return;}updateCountdown();main.postDelayed(tick,1000);}
     private void updateCountdown(){if(card!=null)card.setRemaining(remaining);}
     private void dismiss(){main.removeCallbacks(tick);showNext();}
+    private boolean shouldBeep(){
+        SharedPreferences p=Prefs.get(this);
+        return AudioPolicy.shouldBeep(p.getBoolean(Prefs.SOUND,true),
+                p.getBoolean(Prefs.TTS_MUTE_SYNCED,false),
+                p.getString(Prefs.TTS_MUTE_WINDOWS,""),
+                ActiveHours.nowMinutes(System.currentTimeMillis()));
+    }
     private void beep(){try{ToneGenerator tone=new ToneGenerator(AudioManager.STREAM_NOTIFICATION,80);tone.startTone(ToneGenerator.TONE_PROP_BEEP2,500);main.postDelayed(tone::release,800);}catch(Exception ignored){}}
     private void removeOverlay(){if(overlay!=null){try{wm.removeView(overlay);}catch(Exception ignored){}overlay=null;card=null;}}
     private void sleep(long ms){try{Thread.sleep(ms);}catch(InterruptedException ignored){Thread.currentThread().interrupt();}}
