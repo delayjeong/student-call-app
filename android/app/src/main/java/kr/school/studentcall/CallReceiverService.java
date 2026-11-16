@@ -69,7 +69,12 @@ public class CallReceiverService extends Service {
                 int code=c.getResponseCode();if(code!=200)throw new IOException("HTTP "+code);String body=readAll(c.getInputStream());JSONObject j;try{j=new JSONObject(body);}catch(Exception e){throw new IOException("웹앱 주소를 확인해 주세요 (JSON 아님)");}
                 if(!j.optBoolean("ok")){String err=j.optString("error");throw new IOException("invalid key".equals(err)?"수신기 키가 올바르지 않습니다":err);}
                 synchronized(pendingAcks){for(String a:acks)pendingAcks.remove(a);}
-                int pollSeconds=Math.max(3,Math.min(60,j.optInt("pollSeconds",10)));p.edit().putString(Prefs.ACTIVE_START,j.optString("activeStart",start)).putString(Prefs.ACTIVE_END,j.optString("activeEnd",end)).apply();
+                int pollSeconds=Math.max(3,Math.min(60,j.optInt("pollSeconds",10)));
+                boolean hasRemoteMute=j.has("muteWindows");
+                p.edit().putString(Prefs.ACTIVE_START,j.optString("activeStart",start))
+                        .putString(Prefs.ACTIVE_END,j.optString("activeEnd",end))
+                        .putString(Prefs.TTS_MUTE_WINDOWS,hasRemoteMute?j.optString("muteWindows",""):"")
+                        .putBoolean(Prefs.TTS_MUTE_SYNCED,hasRemoteMute).apply();
                 if(after<0)after=j.optLong("lastId",0);
                 JSONArray calls=j.optJSONArray("calls");
                 for(int i=0;calls!=null&&i<calls.length();i++){
@@ -92,7 +97,7 @@ public class CallReceiverService extends Service {
 
     private void enqueue(Call c){main.post(()->{if(!Settings.canDrawOverlays(this)){notifyCall(c);return;}queue.add(c);if(showingCall==null)showNext();});}
     private void cancel(String id){main.post(()->{for(Iterator<Call>it=queue.iterator();it.hasNext();)if(id.equals(it.next().id))it.remove();if(showingCall!=null&&id.equals(showingCall.id))dismiss();getSystemService(NotificationManager.class).cancel(notifyId(id));if(speaker!=null)speaker.cancel(id);});}
-    private void announce(Call c){SharedPreferences p=Prefs.get(this);if(speaker==null||!p.getBoolean(Prefs.VOICE,true)||MuteSchedule.isMutedNow(p.getString(Prefs.TTS_MUTE_WINDOWS,"")))return;String spoken=c.isNotice()?Korean.noticeSpoken(c.teacher,c.message):Korean.spoken(c.teacher,c.student,c.location,p.getBoolean(Prefs.VOICE_HIDE_NAME,false));speaker.say(c.id,spoken);}
+    private void announce(Call c){SharedPreferences p=Prefs.get(this);if(speaker==null||!p.getBoolean(Prefs.VOICE,true)||(p.getBoolean(Prefs.TTS_MUTE_SYNCED,false)&&MuteSchedule.isMutedNow(p.getString(Prefs.TTS_MUTE_WINDOWS,""))))return;String spoken=c.isNotice()?Korean.noticeSpoken(c.teacher,c.message):Korean.spoken(c.teacher,c.student,c.location,p.getBoolean(Prefs.VOICE_HIDE_NAME,false));speaker.say(c.id,spoken);}
     private static int notifyId(String callId){if(callId==null)return 1999;try{return 2000+(int)(Long.parseLong(callId)%100000);}catch(NumberFormatException e){return 2000+(callId.hashCode()&0xffff);}}
 
     private void notifyCall(Call c){

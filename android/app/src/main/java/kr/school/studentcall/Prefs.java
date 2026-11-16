@@ -10,7 +10,7 @@ final class Prefs {
     static final String SERVER_URL="serverUrl", GRADE="grade", CLASS_NO="classNo", DEVICE_KEY="deviceKey", DEVICE_ID="deviceId";
     static final String ENABLED="enabled", AUTO_START="autoStart", SOUND="sound";
     static final String VOICE="voice", VOICE_HIDE_NAME="voiceHideName", TTS_STATUS="ttsStatus";
-    static final String TTS_MUTE_WINDOWS="ttsMuteWindows";
+    static final String TTS_MUTE_WINDOWS="ttsMuteWindows", TTS_MUTE_SYNCED="ttsMuteSynced";
     static final String ACTIVE_START="activeStart", ACTIVE_END="activeEnd";
     static final String OLD_SERVER_CLEARED="oldServerCleared";
     private static volatile boolean migrated=false;

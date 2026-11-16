@@ -12,9 +12,37 @@
 .monitor-cell .room{font-size:14px;font-weight:850;display:block}
 .monitor-cell .state{font-size:11px;display:block;margin-top:5px}
 .monitor-footer{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:14px;flex-wrap:wrap}
+.mute-times{display:grid;gap:8px;margin-top:12px}
+.mute-time-row{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) auto;gap:8px;align-items:center}
+.mute-time-row input{padding:10px;font-size:16px}
+.mute-time-row button{padding:10px 12px}
+.mute-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.mute-actions button{flex:1}
+.mute-info{background:#f8fafc;border:1px solid #e2e8f0;padding:12px;border-radius:12px;margin-top:8px;font-size:13px;color:#475569}
 @media(max-width:520px){.grid,.mode{grid-template-columns:1fr}.title{font-size:26px}.keyrow{display:block}.keyrow button{width:100%;margin-top:8px}}
 </style></head><body><div class="wrap">
 <div class="title">🔔 학생 호출 · 전달</div><div class="sub">특정 반 또는 학년 전체에 호출·전달할 수 있습니다. <span id="hours"></span></div>
+<details class="card settings" id="muteSettings">
+ <summary>🔇 TTS 음소거 시간표 · 중앙 관리</summary>
+ <p class="hint">교사용 키를 가진 모든 선생님이 변경할 수 있습니다. 설정은 전자칠판이 다음 수신 확인 시 받아 적용하며, 팝업·알림음은 유지됩니다.</p>
+ <div class="field"><label for="muteScope">적용 범위</label><select id="muteScope">
+  <option value="all">전체 전자칠판</option><option value="grade">학년 전체</option><option value="class">특정 반</option>
+ </select></div>
+ <div class="grid">
+  <div class="field hidden" id="muteGradeField"><label for="muteGrade">학년</label><select id="muteGrade"></select></div>
+  <div class="field hidden" id="muteClassField"><label for="muteClass">반</label><select id="muteClass"></select></div>
+ </div>
+ <div id="muteSource" class="mute-info">교사용 키를 저장하면 적용 중인 설정을 확인할 수 있습니다.</div>
+ <div id="muteTimes" class="mute-times"></div>
+ <button type="button" class="mini" id="muteAddBtn" style="margin-top:10px">+ 시간대 추가</button>
+ <div class="mute-actions">
+  <button type="button" class="mini" id="muteSaveBtn">이 대상에 저장</button>
+  <button type="button" class="mini cancel" id="muteResetBtn">별도 설정 삭제 · 상위 설정 상속</button>
+  <button type="button" class="mini" id="muteRefreshBtn">설정 새로고침</button>
+ </div>
+ <div id="muteStatus" class="hint" role="status"></div>
+ <p class="hint">별도 설정은 반 > 학년 > 전체 순으로 우선 적용됩니다. 빈 시간표를 저장하면 해당 대상에서 TTS를 음소거하지 않고, ‘별도 설정 삭제’를 누르면 상위 설정을 따릅니다.</p>
+</details>
 <details class="card monitor" id="boardMonitor">
  <summary><span>🔌 전자칠판 연결 현황</span><span id="boardMonitorSummary" class="monitor-summary">상태 확인 중</span></summary>
  <p class="monitor-intro">최근 수신기 접속으로 연결 상태를 판단합니다. ‘미확인’은 고장·전원 꺼짐을 의미하지 않으며 운영시간 외에는 수신 확인이 없을 수 있습니다.</p>
@@ -45,7 +73,7 @@
 </div><script>
 const $=id=>document.getElementById(id);const store={get:k=>{try{return localStorage.getItem('studentcall_'+k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem('studentcall_'+k,v)}catch(e){}}};
 function escapeHtml(s){return String(s??'').replace(/[&<>'\"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','\"':'&quot;'}[c]))}function setStatus(text,type){const s=$('status');s.className='status '+type;s.textContent=text}function run(fn,...args){return new Promise((resolve,reject)=>google.script.run.withSuccessHandler(resolve).withFailureHandler(e=>reject(new Error(e&&e.message||String(e))))[fn](...args))}function fillSelect(el,n){el.innerHTML='';for(let i=1;i<=n;i++){const o=document.createElement('option');o.value=o.textContent=i;el.appendChild(o)}}
-let classCounts=[5,5,4],online={},gradeOnline={},recentItems=[],schedules=[],freshMs=180000,pollSeconds=10,activeStart='08:00',activeEnd='22:00',sending=false,mode='call',editingScheduleId=null,monitorError='',monitorUpdatedAt=null;
+let classCounts=[5,5,4],online={},gradeOnline={},recentItems=[],schedules=[],freshMs=180000,pollSeconds=10,activeStart='08:00',activeEnd='22:00',sending=false,mode='call',editingScheduleId=null,monitorError='',monitorUpdatedAt=null,muteRules={},muteLoaded=false,muteDirty=false,muteBusy=false;
 const classId=()=>`${$('grade').value}-${$('classNo').value}`;const storedKey=()=>store.get('teacherKey')||'';const toMin=t=>{const[h,m]=t.split(':');return +h*60+ +m};function activeNow(){const p=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Seoul',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date());const n=toMin(p),a=toMin(activeStart),b=toMin(activeEnd);return a<=b?n>=a&&n<b:n>=a||n<b}function targetLabel(target){return target.endsWith('-*')?`${target.split('-')[0]}학년 전체`:`${target.split('-')[0]}학년 ${target.split('-')[1]}반`}
 function rebuildGrades(){fillSelect($('grade'),classCounts.length);const g=Math.min(classCounts.length,Math.max(1,+(store.get('grade')||1)));$('grade').value=String(g);rebuildClasses()}function rebuildClasses(){const g=+$('grade').value||1;fillSelect($('classNo'),classCounts[g-1]||1);const saved=+(store.get('classNo')||1);$('classNo').value=String(Math.min(classCounts[g-1]||1,Math.max(1,saved)));renderTargets()}
 function scopeFor(m){return $(m==='call'?'callScope':'noticeScope').value}function targetFor(m){return scopeFor(m)==='grade'?`${$('grade').value}-*`:classId()}function countFor(target){return target.endsWith('-*')?(gradeOnline[target.split('-')[0]]||0):(online[target]||0)}
@@ -80,13 +108,126 @@ function renderBoardMonitor(){
  updated.textContent=monitorUpdatedAt?'마지막 확인 '+new Date(monitorUpdatedAt).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit',second:'2-digit'}):'확인 중';
  box.innerHTML=html;
 }
+function muteTarget(){
+ const scope=$('muteScope').value,g=$('muteGrade').value,c=$('muteClass').value;
+ return scope==='all'?'all':scope==='grade'?g+'-*':g+'-'+c;
+}
+function muteSourceLabel(target){
+ if(target==='all')return '전체 공통';
+ return target.endsWith('-*')?target.split('-')[0]+'학년 전체':targetLabel(target);
+}
+function selectedMuteRule(){
+ const target=muteTarget(),grade=target.split('-')[0]+'-*';
+ const own=Object.prototype.hasOwnProperty.call(muteRules,target);
+ const source=own?target:target==='all'?'':target.endsWith('-*')?(Object.prototype.hasOwnProperty.call(muteRules,'all')?'all':''):
+    (Object.prototype.hasOwnProperty.call(muteRules,grade)?grade:Object.prototype.hasOwnProperty.call(muteRules,'all')?'all':'');
+ return {own,source,slots:source?muteRules[source]:[]};
+}
+function muteSlotRow(start='',end=''){
+ const row=document.createElement('div');row.className='mute-time-row';
+ const from=document.createElement('input'),to=document.createElement('input'),dash=document.createElement('span'),remove=document.createElement('button');
+ from.type='time';to.type='time';from.value=start;to.value=end;
+ from.setAttribute('aria-label','시작 시각');to.setAttribute('aria-label','종료 시각');
+ dash.textContent='~';remove.type='button';remove.className='mini cancel';remove.textContent='삭제';
+ row.append(from,dash,to,remove);
+ from.addEventListener('input',()=>muteDirty=true);to.addEventListener('input',()=>muteDirty=true);
+ remove.addEventListener('click',()=>{muteDirty=true;row.remove()});
+ return row;
+}
+function muteInputs(){
+ return [...$('muteTimes').querySelectorAll('.mute-time-row')].map(row=>{
+  const [from,to]=row.querySelectorAll('input');
+  if(!/^\d\d:\d\d$/.test(from.value)||!/^\d\d:\d\d$/.test(to.value)||from.value===to.value)throw new Error('시작·종료 시각을 확인해 주세요.');
+  return from.value+'-'+to.value;
+ });
+}
+function rebuildMuteClass(){
+ const count=classCounts[(+$('muteGrade').value||1)-1]||1;
+ const old=$('muteClass').value||'1';fillSelect($('muteClass'),count);
+ $('muteClass').value=String(Math.min(count,Math.max(1,+old||1)));
+}
+function renderMuteEditor(){
+ const scope=$('muteScope').value;
+ $('muteGradeField').classList.toggle('hidden',scope==='all');
+ $('muteClassField').classList.toggle('hidden',scope!=='class');
+ const container=$('muteTimes');container.innerHTML='';
+ if(!muteLoaded){
+  $('muteSource').textContent='교사용 키를 저장하면 음소거 시간표를 읽습니다.';
+  $('muteResetBtn').disabled=true;return;
+ }
+ const info=selectedMuteRule();
+ $('muteSource').textContent=info.own?'현재 대상에 별도 설정이 있습니다.':info.source?
+    '상위 설정 상속 중: '+muteSourceLabel(info.source):'적용 중인 시간표가 없습니다. (TTS 정상 재생)';
+ $('muteResetBtn').disabled=!info.own;
+ (info.slots||[]).forEach(slot=>{
+  const parts=slot.split('-');container.append(muteSlotRow(parts[0],parts[1]));
+ });
+ if(!container.children.length)container.innerHTML='<div class="small">등록된 음소거 시간이 없습니다.</div>';
+ muteDirty=false;
+}
+function onMuteTargetChange(){
+ muteDirty=false;renderMuteEditor();
+}
+function muteStatus(message,bad=false){
+ $('muteStatus').textContent=message;$('muteStatus').style.color=bad?'#991b1b':'#166534';
+}
+async function refreshMuteRules(){
+ if(!storedKey()){muteLoaded=false;muteStatus('교사용 키를 먼저 저장해 주세요.',true);renderMuteEditor();return}
+ try{
+  const result=await run('getMuteSchedules',storedKey());
+  muteRules=result.rules||{};muteLoaded=true;
+  if(!muteDirty)renderMuteEditor();
+ }catch(e){muteStatus('시간표를 읽지 못했습니다: '+e.message,true)}
+}
+async function saveMuteRules(){
+ if(!storedKey()){muteStatus('교사용 키를 먼저 저장해 주세요.',true);return}
+ if(muteBusy)return;
+ let slots;try{slots=muteInputs()}catch(e){muteStatus(e.message,true);return}
+ const target=muteTarget();
+ if(!confirm(muteSourceLabel(target)+'에 음소거 시간대 '+slots.length+'개를 적용하시겠습니까?'))return;
+ muteBusy=true;$('muteSaveBtn').disabled=true;
+ try{
+  await run('saveMuteSchedule',storedKey(),target,slots);
+  muteDirty=false;await refreshMuteRules();
+  muteStatus(muteSourceLabel(target)+' 시간표를 저장했습니다. 다음 수신 확인 시 전자칠판에 반영됩니다.');
+ }catch(e){muteStatus(e.message,true)}
+ finally{muteBusy=false;$('muteSaveBtn').disabled=false}
+}
+async function resetMuteRules(){
+ if(!storedKey()){muteStatus('교사용 키를 먼저 저장해 주세요.',true);return}
+ if(muteBusy)return;
+ const target=muteTarget();
+ if(!confirm(muteSourceLabel(target)+'의 별도 설정을 삭제하고 상위 설정을 따르게 할까요?'))return;
+ muteBusy=true;$('muteResetBtn').disabled=true;
+ try{
+  await run('deleteMuteSchedule',storedKey(),target);
+  muteDirty=false;await refreshMuteRules();
+  muteStatus(muteSourceLabel(target)+'의 별도 설정을 삭제했습니다.');
+ }catch(e){muteStatus(e.message,true)}
+ finally{muteBusy=false}
+}
+function initializeMuteUi(){
+ fillSelect($('muteGrade'),classCounts.length);$('muteGrade').value='1';
+ rebuildMuteClass();renderMuteEditor();
+ $('muteScope').addEventListener('change',onMuteTargetChange);
+ $('muteGrade').addEventListener('change',()=>{rebuildMuteClass();onMuteTargetChange()});
+ $('muteClass').addEventListener('change',onMuteTargetChange);
+ $('muteAddBtn').addEventListener('click',()=>{
+  const box=$('muteTimes');if(box.querySelectorAll('.mute-time-row').length>=24){muteStatus('최대 24개까지 등록할 수 있습니다.',true);return}
+  if(!box.querySelector('.mute-time-row'))box.innerHTML='';
+  box.append(muteSlotRow('08:40','09:30'));muteDirty=true;
+ });
+ $('muteSaveBtn').onclick=saveMuteRules;$('muteResetBtn').onclick=resetMuteRules;
+ $('muteRefreshBtn').onclick=()=>{if(muteDirty&&!confirm('저장하지 않은 변경을 취소하고 서버 설정을 다시 불러올까요?'))return;muteDirty=false;refreshMuteRules()};
+ $('muteSettings').addEventListener('toggle',()=>{if($('muteSettings').open)refreshMuteRules()});
+}
 function renderHours(){const on=activeNow();$('hours').textContent=`(운영 시간 ${activeStart}~${activeEnd})`;if(!sending&&$('sendMode').value==='now')$('sendBtn').disabled=!on;else if(!sending)$('sendBtn').disabled=false;renderSendButton();renderBoardMonitor()}
 function renderSendButton(){if(sending)return;const scheduled=$('sendMode').value==='schedule',grade=scopeFor(mode)==='grade',editing=editingScheduleId!==null;if(editing){$('sendBtn').textContent='예약 수정 저장';return}if(mode==='call')$('sendBtn').textContent=scheduled?(grade?'학년 전체 호출 예약':'학생 호출 예약'):(grade?'학년 전체 학생 호출':'학생 호출');else $('sendBtn').textContent=scheduled?(grade?'학년 전체 전달 예약':'전달 예약'):(grade?'학년 전체에 전달':'선택한 반에 전달');if($('sendMode').value==='now'&&!activeNow())$('sendBtn').textContent=`운영 시간이 아닙니다 (${activeStart}~${activeEnd})`}
 function setMode(next){mode=next;const call=next==='call';$('modeCall').classList.toggle('active',call);$('modeNotice').classList.toggle('active',!call);$('callPanel').classList.toggle('hidden',!call);$('noticePanel').classList.toggle('hidden',call);renderTargets()}
 function setSendMode(){const reserve=$('sendMode').value==='schedule';$('scheduleBox').classList.toggle('hidden',!reserve);if(reserve&&!$('scheduleAt').value)setDefaultSchedule();renderHours()}
 function kstParts(ms){const p=new Intl.DateTimeFormat('sv-SE',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date(ms));const o={};p.forEach(x=>o[x.type]=x.value);return `${o.year}-${o.month}-${o.day}T${o.hour}:${o.minute}`}function setDefaultSchedule(){const v=kstParts(Date.now()+5*60000);$('scheduleAt').value=v;$('scheduleAt').min=kstParts(Date.now()+60000)}
 function renderKeyState(){const has=!!storedKey();$('keyState').textContent=has?'교사용 키: 저장됨 ✓ (내용은 표시하지 않습니다)':'교사용 키가 아직 저장되지 않았습니다.';$('keyState').className='hint'+(has?'':' danger-note')}
-async function init(){try{const cfg=await run('getConfig');classCounts=cfg.classCounts||[5,5,4];pollSeconds=cfg.pollSeconds;activeStart=cfg.activeStart;activeEnd=cfg.activeEnd}catch(e){setStatus('설정을 불러오지 못했습니다: '+e.message,'err')}rebuildGrades();renderHours();renderKeyState();setInterval(renderHours,30000);const teacher=store.get('teacher');if(teacher)$('teacher').value=teacher;$('teacher').addEventListener('change',()=>store.set('teacher',$('teacher').value.trim()));$('grade').addEventListener('change',()=>{store.set('grade',$('grade').value);store.set('classNo','1');rebuildClasses();refresh()});$('classNo').addEventListener('change',()=>{store.set('classNo',$('classNo').value);renderTargets();refresh()});$('callScope').addEventListener('change',renderTargets);$('noticeScope').addEventListener('change',renderTargets);$('sendMode').addEventListener('change',setSendMode);if(!storedKey()||!$('teacher').value.trim())$('settings').open=true;refresh();setInterval(()=>{if(!document.hidden)refresh()},20000)}
+async function init(){try{const cfg=await run('getConfig');classCounts=cfg.classCounts||[5,5,4];pollSeconds=cfg.pollSeconds;activeStart=cfg.activeStart;activeEnd=cfg.activeEnd}catch(e){setStatus('설정을 불러오지 못했습니다: '+e.message,'err')}rebuildGrades();initializeMuteUi();renderHours();renderKeyState();setInterval(renderHours,30000);const teacher=store.get('teacher');if(teacher)$('teacher').value=teacher;$('teacher').addEventListener('change',()=>store.set('teacher',$('teacher').value.trim()));$('grade').addEventListener('change',()=>{store.set('grade',$('grade').value);store.set('classNo','1');rebuildClasses();refresh()});$('classNo').addEventListener('change',()=>{store.set('classNo',$('classNo').value);renderTargets();refresh()});$('callScope').addEventListener('change',renderTargets);$('noticeScope').addEventListener('change',renderTargets);$('sendMode').addEventListener('change',setSendMode);if(!storedKey()||!$('teacher').value.trim())$('settings').open=true;refresh();setInterval(()=>{if(!document.hidden){refresh();if($('muteSettings').open&&!muteBusy)refreshMuteRules()}},20000)}
 async function saveTeacherKey(){const entered=$('teacherKeyInput').value.trim();if(!entered){setStatus('저장할 교사용 키를 입력해 주세요.','err');return}const b=$('saveKeyBtn');b.disabled=true;try{await run('checkTeacherKey',entered);store.set('teacherKey',entered);$('teacherKeyInput').value='';renderKeyState();setStatus('교사용 키를 저장했습니다. 저장된 값은 화면에 다시 표시하지 않습니다.','ok');refresh()}catch(e){setStatus(e.message,'err')}finally{b.disabled=false}}
 async function refresh(){
  const k=storedKey();
