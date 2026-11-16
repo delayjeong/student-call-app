@@ -49,6 +49,7 @@ assert.strictEqual(poll({key:D,classId:'2-3',deviceId:'mute-23'}).muteWindows,'0
 gas.deleteMuteSchedule(T,'all');
 assert.strictEqual(poll({key:D,classId:'1-5',deviceId:'mute-check'}).muteWindows,'');
 assert.strictEqual(poll({key:D,classId:'1-5',deviceId:'mute-check'}).muteSource,'');
+state.cache.clear(); // 음소거 API 검증에서 만든 가상 수신기 접속 기록을 기존 호출 테스트와 분리
 
 
 assert.strictEqual(gas.doGet({parameter:{}}).file,'Teacher');
