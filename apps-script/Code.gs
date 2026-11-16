@@ -5,6 +5,7 @@
  */
 var SHEET_NAME = '호출기록';
 var SCHEDULE_SHEET_NAME = '예약전송';
+var TTS_MUTE_RULES_PROPERTY = 'TTS_MUTE_RULES', TTS_MUTE_CACHE_KEY = 'ttsMuteRules';
 var HEADERS = ['번호', '보낸 시각', '반/대상', '선생님', '학생', '위치', '상태', '표시 대수', '유형', '전달사항'];
 var SCHEDULE_HEADERS = ['예약번호', '예약 시각', '대상', '유형', '선생님', '학생', '위치', '전달사항', '상태', '생성 시각', '전송 시각'];
 var COL = { ID: 1, TIME: 2, CLASS: 3, TEACHER: 4, STUDENT: 5, LOCATION: 6, STATUS: 7, SHOWN: 8, TYPE: 9, MESSAGE: 10 };
@@ -69,7 +70,7 @@ function regenerateKeys() {
 
 function clearCaches() {
   repairStoredTargets_();
-  var cfg = loadConfig_(), keys = ['config', 'lastId'];
+  var cfg = loadConfig_(), keys = ['config', 'lastId', TTS_MUTE_CACHE_KEY];
   for (var g = 1; g <= cfg.classCounts.length; g++) {
     keys.push('calls:' + g + '-*');
     for (var c = 1; c <= cfg.classCounts[g - 1]; c++) keys.push('calls:' + g + '-' + c);
@@ -116,7 +117,9 @@ function handlePoll_(p) {
   if (!deviceId || deviceId.length > MAX_DEVICE_ID_LENGTH) return { ok: false, error: 'deviceId is required' };
   if (p.acked) recordAcks_(classId, deviceId, String(p.acked).split(','));
   markSeen_(classId, deviceId, cfg);
-  var base = { ok: true, lastId: lastId_(), pollSeconds: cfg.pollSeconds, activeStart: cfg.activeStart, activeEnd: cfg.activeEnd };
+  var mute = resolveMuteForClass_(classId, loadMuteRules_());
+  var base = { ok: true, lastId: lastId_(), pollSeconds: cfg.pollSeconds, activeStart: cfg.activeStart, activeEnd: cfg.activeEnd,
+    muteWindows: mute.windows.join(';'), muteSource: mute.source };
   var after = parseInt(p.after, 10);
   if (isNaN(after)) { base.calls = []; base.cancelled = []; return base; }
   var gradeTarget = classId.split('-')[0] + '-*', now = Date.now();
@@ -348,6 +351,79 @@ function getDashboard(teacherKey) {
   });
   Object.keys(gradeOnline).forEach(function (g) { gradeOnline[g] = Object.keys(gradeOnline[g]).length; });
   return { items: items, online: online, gradeOnline: gradeOnline, freshMs: FRESH_MS };
+}
+
+
+/**
+ * 음소거 일정 중앙 관리: 전체(all) < 학년(g-*) < 반(g-c).
+ * 같은 대상의 []는 명시적으로 음소거 없음, 규칙 삭제는 상위 규칙 상속.
+ * 교사용 공용 키를 가진 모든 교사에게 읽기·쓰기 권한을 부여한다.
+ */
+function loadMuteRules_() {
+  var cache = CacheService.getScriptCache(), hit = cache.get(TTS_MUTE_CACHE_KEY);
+  if (hit !== null && hit !== undefined) {
+    try { return JSON.parse(hit); } catch (e) { cache.removeAll([TTS_MUTE_CACHE_KEY]); }
+  }
+  var raw = PropertiesService.getScriptProperties().getProperty(TTS_MUTE_RULES_PROPERTY) || '{}', rules;
+  try { rules = JSON.parse(raw); if (!rules || typeof rules !== 'object' || Array.isArray(rules)) rules = {}; }
+  catch (e) { rules = {}; }
+  cache.put(TTS_MUTE_CACHE_KEY, JSON.stringify(rules), 60);
+  return rules;
+}
+
+function validateMuteTarget_(target, cfg) {
+  return target === 'all' || validTarget_(target, cfg);
+}
+
+function normalizeMuteWindows_(windows) {
+  if (!Array.isArray(windows) || windows.length > 24) throw new Error('음소거 시간대는 최대 24개까지 등록할 수 있습니다.');
+  return windows.map(function (w) {
+    if (typeof w !== 'string') throw new Error('시간대 형식이 올바르지 않습니다.');
+    var entry = w.trim(), m = HOURS_RE.exec(entry);
+    if (!m || (m[1] === m[3] && m[2] === m[4])) throw new Error('음소거 시작·종료 시각을 확인해 주세요.');
+    return m[1] + ':' + m[2] + '-' + m[3] + ':' + m[4];
+  }).filter(function (value, index, all) { return all.indexOf(value) === index; });
+}
+
+function resolveMuteForClass_(classId, rules) {
+  var grade = classId.split('-')[0] + '-*';
+  var source = Object.prototype.hasOwnProperty.call(rules, classId) ? classId :
+    Object.prototype.hasOwnProperty.call(rules, grade) ? grade :
+    Object.prototype.hasOwnProperty.call(rules, 'all') ? 'all' : '';
+  var windows = source && Array.isArray(rules[source]) ? rules[source] : [];
+  return { source: source, windows: windows };
+}
+
+function getMuteSchedules(teacherKey) {
+  requireTeacher_(teacherKey);
+  return { rules: loadMuteRules_() };
+}
+
+function saveMuteSchedule(teacherKey, target, windows) {
+  requireTeacher_(teacherKey);
+  var scope = String(target || '').trim(), cfg = config_();
+  if (!validateMuteTarget_(scope, cfg)) throw new Error('음소거 적용 대상이 올바르지 않습니다.');
+  var normalized = normalizeMuteWindows_(windows);
+  return withLock_(function () {
+    var rules = loadMuteRules_();
+    rules[scope] = normalized;
+    PropertiesService.getScriptProperties().setProperty(TTS_MUTE_RULES_PROPERTY, JSON.stringify(rules));
+    CacheService.getScriptCache().removeAll([TTS_MUTE_CACHE_KEY]);
+    return { ok: true, target: scope, windows: normalized };
+  });
+}
+
+function deleteMuteSchedule(teacherKey, target) {
+  requireTeacher_(teacherKey);
+  var scope = String(target || '').trim();
+  if (!validateMuteTarget_(scope, config_())) throw new Error('음소거 적용 대상이 올바르지 않습니다.');
+  return withLock_(function () {
+    var rules = loadMuteRules_();
+    delete rules[scope];
+    PropertiesService.getScriptProperties().setProperty(TTS_MUTE_RULES_PROPERTY, JSON.stringify(rules));
+    CacheService.getScriptCache().removeAll([TTS_MUTE_CACHE_KEY]);
+    return { ok: true, target: scope };
+  });
 }
 
 function checkTeacherKey(teacherKey) { requireTeacher_(teacherKey); return true; }
