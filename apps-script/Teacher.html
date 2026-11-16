@@ -22,6 +22,24 @@
 @media(max-width:520px){.grid,.mode{grid-template-columns:1fr}.title{font-size:26px}.keyrow{display:block}.keyrow button{width:100%;margin-top:8px}}
 </style></head><body><div class="wrap">
 <div class="title">🔔 학생 호출 · 전달</div><div class="sub">특정 반 또는 학년 전체에 호출·전달할 수 있습니다. <span id="hours"></span></div>
+<div class="card">
+ <div class="mode"><button type="button" class="modebtn active" id="modeCall">학생 호출</button><button type="button" class="modebtn notice" id="modeNotice">전달사항</button></div>
+ <div class="grid"><div class="field"><label for="grade">학년</label><select id="grade"></select></div><div class="field"><label for="classNo">반</label><select id="classNo"></select></div></div>
+ <div id="callPanel">
+  <div class="field"><label for="callScope">호출 대상</label><select id="callScope"><option value="class">선택한 반</option><option value="grade">학년 전체</option></select></div>
+  <div class="scopebox"><strong id="callTarget"></strong><span class="small" id="devicesCall"></span></div>
+  <div class="field"><label for="student">학생 이름</label><input id="student" autocomplete="off" maxlength="30"></div>
+  <div class="field"><label for="callLocation">호출 위치</label><input id="callLocation" autocomplete="off" maxlength="40" placeholder="호출 위치 입력"></div>
+ </div>
+ <div id="noticePanel" class="hidden">
+  <div class="field"><label for="noticeScope">전달 대상</label><select id="noticeScope"><option value="class">선택한 반</option><option value="grade">학년 전체</option></select></div>
+  <div class="scopebox"><strong id="noticeTarget"></strong><span class="small" id="noticeDevices"></span></div>
+  <div class="field"><label for="message">전달사항</label><textarea id="message" maxlength="200"></textarea><div class="hint">전자칠판에서 “선생님 전달사항입니다. …” 형식으로 화면 표시와 TTS 안내가 나옵니다. (최대 200자)</div></div>
+ </div>
+ <div class="field"><label for="sendMode">전송 방식</label><select id="sendMode"><option value="now">즉시 전송</option><option value="schedule">예약 전송</option></select></div>
+ <div id="scheduleBox" class="hidden"><div class="field"><label for="scheduleAt">예약 날짜·시간</label><input id="scheduleAt" type="datetime-local"></div><div class="schedule-note">예약 전송은 시스템 사정에 따라 설정한 시각에서 약 1분 정도 오차가 발생할 수 있습니다.</div><div id="editBar" class="editbar hidden"><span>예약 수정 중</span><button type="button" id="cancelEditBtn">수정 취소</button></div></div>
+ <button class="primary" id="sendBtn">학생 호출</button><div id="status" class="status"></div>
+</div>
 <details class="card monitor" id="boardMonitor">
  <summary><span>🔌 전자칠판 연결 현황</span><span id="boardMonitorSummary" class="monitor-summary">상태 확인 중</span></summary>
  <p class="monitor-intro">최근 수신기 접속으로 연결 상태를 판단합니다. ‘미확인’은 고장·전원 꺼짐을 의미하지 않으며 운영시간 외에는 수신 확인이 없을 수 있습니다.</p>
@@ -49,24 +67,6 @@
  <div id="muteStatus" class="hint" role="status"></div>
  <p class="hint">별도 설정은 반 > 학년 > 전체 순으로 우선 적용됩니다. 빈 시간표를 저장하면 해당 대상에서 TTS를 음소거하지 않고, ‘별도 설정 삭제’를 누르면 상위 설정을 따릅니다.</p>
 </details>
-<div class="card">
- <div class="mode"><button type="button" class="modebtn active" id="modeCall">학생 호출</button><button type="button" class="modebtn notice" id="modeNotice">전달사항</button></div>
- <div class="grid"><div class="field"><label for="grade">학년</label><select id="grade"></select></div><div class="field"><label for="classNo">반</label><select id="classNo"></select></div></div>
- <div id="callPanel">
-  <div class="field"><label for="callScope">호출 대상</label><select id="callScope"><option value="class">선택한 반</option><option value="grade">학년 전체</option></select></div>
-  <div class="scopebox"><strong id="callTarget"></strong><span class="small" id="devicesCall"></span></div>
-  <div class="field"><label for="student">학생 이름</label><input id="student" autocomplete="off" maxlength="30"></div>
-  <div class="field"><label for="callLocation">호출 위치</label><input id="callLocation" autocomplete="off" maxlength="40" placeholder="호출 위치 입력"></div>
- </div>
- <div id="noticePanel" class="hidden">
-  <div class="field"><label for="noticeScope">전달 대상</label><select id="noticeScope"><option value="class">선택한 반</option><option value="grade">학년 전체</option></select></div>
-  <div class="scopebox"><strong id="noticeTarget"></strong><span class="small" id="noticeDevices"></span></div>
-  <div class="field"><label for="message">전달사항</label><textarea id="message" maxlength="200"></textarea><div class="hint">전자칠판에서 “선생님 전달사항입니다. …” 형식으로 화면 표시와 TTS 안내가 나옵니다. (최대 200자)</div></div>
- </div>
- <div class="field"><label for="sendMode">전송 방식</label><select id="sendMode"><option value="now">즉시 전송</option><option value="schedule">예약 전송</option></select></div>
- <div id="scheduleBox" class="hidden"><div class="field"><label for="scheduleAt">예약 날짜·시간</label><input id="scheduleAt" type="datetime-local"></div><div class="schedule-note">예약 전송은 시스템 사정에 따라 설정한 시각에서 약 1분 정도 오차가 발생할 수 있습니다.</div><div id="editBar" class="editbar hidden"><span>예약 수정 중</span><button type="button" id="cancelEditBtn">수정 취소</button></div></div>
- <button class="primary" id="sendBtn">학생 호출</button><div id="status" class="status"></div>
-</div>
 <details class="card settings" id="settings"><summary>교사 설정</summary><div class="field"><label for="teacher">선생님 이름</label><input id="teacher" maxlength="30"></div><div class="field"><label for="teacherKeyInput">교사용 키</label><div class="keyrow"><input id="teacherKeyInput" type="password" autocomplete="new-password" placeholder="관리자에게 받은 키"><button type="button" id="saveKeyBtn">교사용 키 저장</button></div><div class="hint" id="keyState">교사용 키가 아직 저장되지 않았습니다.</div><div class="hint">저장된 키는 다시 표시하지 않습니다. 변경할 때만 새 키를 입력해 덮어쓰세요.</div></div></details>
 <div class="card"><div class="head"><b>예약된 호출 · 전달</b><button class="mini" id="refreshSchedulesBtn" type="button">새로고침</button></div><div id="schedules" class="recent"><div class="small" style="margin-top:8px">예약 없음</div></div></div>
 <div class="card"><div class="head"><b>최근 호출 · 전달</b><button class="mini" id="refreshBtn" type="button">새로고침</button></div><div id="recent" class="recent"><div class="small" style="margin-top:8px">교사용 키를 저장하면 최근 기록이 표시됩니다.</div></div></div>
