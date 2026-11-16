@@ -92,7 +92,7 @@ public class CallReceiverService extends Service {
 
     private void enqueue(Call c){main.post(()->{if(!Settings.canDrawOverlays(this)){notifyCall(c);return;}queue.add(c);if(showingCall==null)showNext();});}
     private void cancel(String id){main.post(()->{for(Iterator<Call>it=queue.iterator();it.hasNext();)if(id.equals(it.next().id))it.remove();if(showingCall!=null&&id.equals(showingCall.id))dismiss();getSystemService(NotificationManager.class).cancel(notifyId(id));if(speaker!=null)speaker.cancel(id);});}
-    private void announce(Call c){SharedPreferences p=Prefs.get(this);if(speaker==null||!p.getBoolean(Prefs.VOICE,true))return;String spoken=c.isNotice()?Korean.noticeSpoken(c.teacher,c.message):Korean.spoken(c.teacher,c.student,c.location,p.getBoolean(Prefs.VOICE_HIDE_NAME,false));speaker.say(c.id,spoken);}
+    private void announce(Call c){SharedPreferences p=Prefs.get(this);if(speaker==null||!p.getBoolean(Prefs.VOICE,true)||MuteSchedule.isMutedNow(p.getString(Prefs.TTS_MUTE_WINDOWS,"")))return;String spoken=c.isNotice()?Korean.noticeSpoken(c.teacher,c.message):Korean.spoken(c.teacher,c.student,c.location,p.getBoolean(Prefs.VOICE_HIDE_NAME,false));speaker.say(c.id,spoken);}
     private static int notifyId(String callId){if(callId==null)return 1999;try{return 2000+(int)(Long.parseLong(callId)%100000);}catch(NumberFormatException e){return 2000+(callId.hashCode()&0xffff);}}
 
     private void notifyCall(Call c){
