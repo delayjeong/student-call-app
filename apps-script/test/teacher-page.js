@@ -45,11 +45,12 @@ const { load } = require('./gas-mock');
   await page.goto('https://gas.test/');
   await page.waitForFunction(() => document.querySelectorAll('#grade option').length === 3);
 
-  // 연결 현황을 먼저, TTS 중앙 관리 설정을 그 바로 아래에 표시한다.
+  // 호출·전달 입력을 먼저, 연결 현황과 음소거 설정은 그 아래에 표시한다.
   assert.strictEqual(await page.evaluate(() => {
     const monitor=document.querySelector('#boardMonitor');
     const mute=document.querySelector('#muteSettings');
-    return monitor.nextElementSibling===mute && monitor.compareDocumentPosition(mute)===Node.DOCUMENT_POSITION_FOLLOWING;
+    const send=document.querySelector('#modeCall').closest('.card');
+    return send.nextElementSibling===monitor && monitor.nextElementSibling===mute;
   }),true);
 
   // 실제 학급 구성 5/5/4
