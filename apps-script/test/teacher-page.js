@@ -62,6 +62,17 @@ const { load } = require('./gas-mock');
   await page.waitForFunction(() => document.querySelector('#keyState').textContent.includes('저장됨'));
   assert.strictEqual(await page.inputValue('#teacherKeyInput'), '');
 
+  // 전체 반 연결 현황: 서버의 실시간 대시보드 데이터를 그대로 사용
+  await page.waitForFunction(() => document.querySelector('#boardMonitorSummary').textContent.includes('연결 2/14개 반'));
+  await page.click('#boardMonitor summary');
+  assert.strictEqual(await page.locator('.monitor-cell').count(), 14);
+  assert.strictEqual(await page.locator('.monitor-cell.connected').count(), 2);
+  assert.ok((await page.locator('.monitor-cell[data-class="2-3"]').textContent()).includes('1대 연결'));
+  assert.ok((await page.locator('.monitor-cell[data-class="3-4"]').textContent()).includes('미확인'));
+  await page.click('#refreshMonitorBtn');
+  await page.waitForFunction(() => document.querySelector('#boardMonitorUpdated').textContent.includes('마지막 확인'));
+
+
   // 특정 반 학생 호출
   await page.selectOption('#grade', '2'); await page.dispatchEvent('#grade', 'change');
   await page.selectOption('#classNo', '3'); await page.dispatchEvent('#classNo', 'change');
