@@ -15,6 +15,42 @@ assert.deepStrictEqual(sheet.rows[0].slice(8,10),['유형','전달사항']);
 assert.strictEqual(scheduleSheet.rows[0][0],'예약번호');
 assert.deepStrictEqual(plain(gas.getConfig().classCounts),[5,5,4]);
 
+// 중앙 TTS 음소거 시간표: 공통 > 학년 > 반 오버라이드, 명시적 빈 시간표, 복구/인증
+assert.deepStrictEqual(plain(gas.getMuteSchedules(T).rules),{});
+assert.strictEqual(poll({key:D,classId:'1-5',deviceId:'mute-check'}).muteWindows,'');
+assert.throws(()=>gas.getMuteSchedules('wrong'),/교사용 키/);
+assert.throws(()=>gas.saveMuteSchedule(D,'all',['08:40-09:30']),/교사용 키/);
+assert.throws(()=>gas.deleteMuteSchedule('wrong','all'),/교사용 키/);
+assert.throws(()=>gas.saveMuteSchedule(T,'4-*',['08:40-09:30']),/적용 대상/);
+assert.throws(()=>gas.saveMuteSchedule(T,'all',['09:00-09:00']),/시작·종료/);
+assert.throws(()=>gas.saveMuteSchedule(T,'all',['25:00-26:00']),/시작·종료/);
+assert.throws(()=>gas.saveMuteSchedule(T,'all',['08:00-09:00'.repeat(25)]),/시작·종료/);
+assert.throws(()=>gas.saveMuteSchedule(T,'all',Array(25).fill('08:40-09:30')),/최대 24개/);
+gas.saveMuteSchedule(T,'all',['08:40-09:30','09:40-10:30']);
+assert.strictEqual(poll({key:D,classId:'3-4',deviceId:'mute-3'}).muteWindows,'08:40-09:30;09:40-10:30');
+assert.strictEqual(poll({key:D,classId:'3-4',deviceId:'mute-3'}).muteSource,'all');
+gas.saveMuteSchedule(T,'2-*',['10:40-11:30']);
+assert.strictEqual(poll({key:D,classId:'2-3',deviceId:'mute-23'}).muteWindows,'10:40-11:30');
+assert.strictEqual(poll({key:D,classId:'2-3',deviceId:'mute-23'}).muteSource,'2-*');
+assert.strictEqual(poll({key:D,classId:'1-2',deviceId:'mute-12'}).muteSource,'all');
+gas.saveMuteSchedule(T,'2-3',[]);
+assert.strictEqual(poll({key:D,classId:'2-3',deviceId:'mute-23'}).muteWindows,'');
+assert.strictEqual(poll({key:D,classId:'2-3',deviceId:'mute-23'}).muteSource,'2-3');
+gas.saveMuteSchedule(T,'2-3',['22:30-06:10']);
+assert.strictEqual(poll({key:D,classId:'2-3',deviceId:'mute-23'}).muteWindows,'22:30-06:10');
+state.cache.clear();
+assert.strictEqual(poll({key:D,classId:'2-3',deviceId:'mute-23'}).muteWindows,'22:30-06:10');
+gas.deleteMuteSchedule(T,'2-3');
+assert.strictEqual(poll({key:D,classId:'2-3',deviceId:'mute-23'}).muteSource,'2-*');
+gas.deleteMuteSchedule(T,'2-*');
+assert.strictEqual(poll({key:D,classId:'2-3',deviceId:'mute-23'}).muteSource,'all');
+gas.clearCaches();
+assert.strictEqual(poll({key:D,classId:'2-3',deviceId:'mute-23'}).muteWindows,'08:40-09:30;09:40-10:30');
+gas.deleteMuteSchedule(T,'all');
+assert.strictEqual(poll({key:D,classId:'1-5',deviceId:'mute-check'}).muteWindows,'');
+assert.strictEqual(poll({key:D,classId:'1-5',deviceId:'mute-check'}).muteSource,'');
+
+
 assert.strictEqual(gas.doGet({parameter:{}}).file,'Teacher');
 assert.strictEqual(poll({key:'wrong',classId:'1-5',deviceId:'a'}).error,'invalid key');
 assert.strictEqual(poll({key:D,classId:'3-5',deviceId:'a'}).ok,false);
